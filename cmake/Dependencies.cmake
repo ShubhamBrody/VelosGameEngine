@@ -69,3 +69,19 @@ FetchContent_MakeAvailable(jolt)
 if(MSVC)
     set_property(TARGET Jolt PROPERTY MSVC_RUNTIME_LIBRARY "${CMAKE_MSVC_RUNTIME_LIBRARY}")
 endif()
+
+set(BUILD_TOOLS OFF CACHE BOOL "" FORCE)
+set(BUILD_SAMPLE OFF CACHE BOOL "" FORCE)
+set(BUILD_DX11 OFF CACHE BOOL "" FORCE)
+set(BUILD_DX12 ON CACHE BOOL "" FORCE)
+set(BC_USE_OPENMP OFF CACHE BOOL "" FORCE)
+set(MESHOPT_BUILD_DEMO OFF CACHE BOOL "" FORCE)
+set(MESHOPT_BUILD_GLTFPACK OFF CACHE BOOL "" FORCE)
+set(MESHOPT_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(directxtex SYSTEM
+    URL https://codeload.github.com/microsoft/DirectXTex/tar.gz/6c235c3a5b2eaead956043973a725d06fabce9c1
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+FetchContent_Declare(meshoptimizer SYSTEM
+    URL https://codeload.github.com/zeux/meshoptimizer/tar.gz/c645e49d40416466f6b347ea69cd9b96c9e532f4
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+FetchContent_MakeAvailable(directxtex meshoptimizer)

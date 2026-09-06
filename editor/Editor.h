@@ -46,8 +46,11 @@ private:
     PhysicsWorld physics_;
     AssistantPanel assistant_;
     DiskCache geometryCache_;
+    DiskCache textureCache_;
     struct ImportedAsset { MeshData mesh; std::string reference; std::string name; std::filesystem::path project; };
     std::future<ImportedAsset> import_;
+    struct ImportedTexture { TextureData texture; std::string reference; EntityId entity; TextureSlot slot; std::filesystem::path project; std::uint64_t revision; };
+    std::future<ImportedTexture> textureImport_;
     std::future<std::filesystem::path> export_;
     std::string importStatus_;
     RenderFrame frame_;
@@ -98,6 +101,7 @@ private:
     void applyPendingAction();
     std::filesystem::path chooseScenePath(bool save);
     void chooseImport();
+    void chooseTexture(TextureSlot slot);
     void exportRuntime();
 };
 

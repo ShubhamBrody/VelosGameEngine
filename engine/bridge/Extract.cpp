@@ -15,6 +15,7 @@ void extractScene(const Scene& scene, RenderFrame& frame, EntityId selected, boo
         const auto world = scene.worldMatrix(id);
         if (const auto* mesh = scene.get<MeshRenderer>(id)) {
             DrawItem item;
+            static_cast<Material&>(item) = static_cast<const Material&>(*mesh);
             item.mesh = mesh->mesh;
             DirectX::XMStoreFloat4x4(&item.world, world);
             item.color = mesh->color;

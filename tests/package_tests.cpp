@@ -11,12 +11,18 @@ int main(int argc, char** argv) {
     const auto root = std::filesystem::temp_directory_path() / (L"VelosPackageTest-" + std::to_wstring(GetCurrentProcessId()));
     try {
         const auto source = root / L"source" / L"test.velos";
-        velos::writeTextAtomic(source, velos::Scene::demo().serialize());
+        auto scene = velos::Scene::demo();
+        scene.get<velos::MeshRenderer>(2)->textures[0] = "Assets/material-test.png";
+        velos::writeTextAtomic(source.parent_path() / L"Assets/material-test.png", "texture dependency fixture");
+        velos::writeTextAtomic(source, scene.serialize());
         velos::writeTextAtomic(source.parent_path() / L"ai_credentials.json", "must not be packaged");
         velos::writeTextAtomic(source.parent_path() / L"unrelated.txt", "must not be packaged");
         const auto output = root / L"build";
         velos::packageScene(source, output, velos::wide(argv[1]));
         velos::verifyPackage(output);
+        if (velos::readText(output / L"Assets/material-test.png") != "texture dependency fixture") {
+            throw std::runtime_error("Material texture dependencies were omitted from the package.");
+        }
         if (std::filesystem::exists(output / "ai_credentials.json") || std::filesystem::exists(output / "unrelated.txt")) {
             throw std::runtime_error("Exporter copied unrelated or credential files.");
         }

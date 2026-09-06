@@ -88,12 +88,47 @@ void testHistory() {
     require(tiny.bytes() <= 16 && !tiny.canUndo(), "History must respect its byte budget.");
 }
 
+void testMaterials() {
+    velos::Scene scene;
+    const auto id = scene.addPrimitive("cube");
+    auto& material = *scene.get<velos::MeshRenderer>(id);
+    material.textures = {"Assets/base.png", "Assets/normal.dds", "Assets/orm.png", "Assets/emissive.png"};
+    material.uvScale = {3, 2};
+    material.uvOffset = {0.1f, -0.25f};
+    material.emissionStrength = 4;
+    material.surface = velos::SurfaceMode::Masked;
+    material.doubleSided = false;
+    const auto saved = scene.serialize();
+    velos::Scene loaded;
+    std::string error;
+    require(loaded.deserialize(saved, error) && loaded.serialize() == saved, "Textured material round trip.");
+    velos::History history;
+    history.begin(scene);
+    material.textures[0] = "Assets/replacement.png";
+    history.commit(scene, "Replace texture");
+    require(history.undo(scene, error) && scene.serialize() == saved, "Texture edits must be undoable.");
+    auto invalid = loaded.toJson();
+    invalid["entities"][0]["mesh"]["textures"][0] = "Assets/../secret.png";
+    require(!loaded.deserialize(invalid.dump(), error), "Texture paths must remain inside the project.");
+    require(loaded.serialize() == saved, "Invalid material loads must not change the scene.");
+    invalid = scene.toJson();
+    invalid["entities"][0]["mesh"]["surface"] = 17;
+    require(!loaded.deserialize(invalid.dump(), error), "Unknown surface mode must be rejected.");
+    auto legacy = scene.toJson();
+    for (const auto* property : {"textures", "uvScale", "uvOffset", "emission", "emissionStrength", "normalStrength", "alphaCutoff", "surface", "doubleSided"}) {
+        legacy["entities"][0]["mesh"].erase(property);
+    }
+    require(loaded.deserialize(legacy.dump(), error), "Legacy untextured scene must still load.");
+    require(loaded.get<velos::MeshRenderer>(id)->textures[0].empty(), "Legacy material default texture.");
+}
+
 }
 
 int main() {
     try {
         testScene();
         testHistory();
+        testMaterials();
         std::cout << "PASS: scene round trips, hierarchy, validation, transactional load and bounded undo/redo.\n";
         return 0;
     } catch (const std::exception& error) {

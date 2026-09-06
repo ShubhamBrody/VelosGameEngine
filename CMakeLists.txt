@@ -35,8 +35,11 @@ add_library(velos_mesh STATIC engine/assets/Mesh.cpp)
 target_include_directories(velos_mesh SYSTEM PRIVATE "${cgltf_SOURCE_DIR}")
 target_link_libraries(velos_mesh PUBLIC velos_cache)
 
+add_library(velos_texture STATIC engine/assets/Texture.cpp)
+target_link_libraries(velos_texture PUBLIC velos_cache DirectXTex)
+
 add_library(velos_renderer STATIC engine/rhi/d3d12/Renderer.cpp)
-target_link_libraries(velos_renderer PUBLIC velos_mesh PRIVATE velos_imgui d3d12 dxgi dxguid windowscodecs)
+target_link_libraries(velos_renderer PUBLIC velos_mesh velos_texture PRIVATE velos_imgui d3d12 dxgi dxguid windowscodecs)
 
 add_library(velos_bridge STATIC engine/bridge/Extract.cpp)
 target_link_libraries(velos_bridge PUBLIC velos_scene)
@@ -69,7 +72,7 @@ set(VELOS_RUNTIME_COPY_COMMANDS
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${VELOS_DXC_DLL}" "${VELOS_RUNTIME_DIR}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${VELOS_DXC_DIR}/dxil.dll" "${VELOS_RUNTIME_DIR}"
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${PROJECT_SOURCE_DIR}/shaders" "${VELOS_RUNTIME_DIR}/shaders")
-foreach(dependency IN ITEMS imgui imguizmo entt json cgltf jolt)
+foreach(dependency IN ITEMS imgui imguizmo entt json cgltf jolt directxtex meshoptimizer)
     file(GLOB license_files "${${dependency}_SOURCE_DIR}/LICENSE*")
     foreach(license_file IN LISTS license_files)
         if(NOT IS_DIRECTORY "${license_file}")
@@ -85,6 +88,8 @@ add_dependencies(VelosRuntime velos_runtime_data)
 
 add_executable(velos_ai_probe tools/ai_probe.cpp)
 target_link_libraries(velos_ai_probe PRIVATE velos_ai)
+add_executable(velos_graphics_fixture tools/graphics_fixture.cpp)
+target_link_libraries(velos_graphics_fixture PRIVATE velos_scene velos_texture)
 
 include(CTest)
 if(BUILD_TESTING)
@@ -119,4 +124,7 @@ if(BUILD_TESTING)
     target_link_libraries(velos_package_tests PRIVATE velos_package)
     add_dependencies(velos_package_tests VelosRuntime)
     add_test(NAME velos.package COMMAND velos_package_tests "$<TARGET_FILE_DIR:VelosRuntime>")
+    add_executable(velos_texture_tests tests/texture_tests.cpp)
+    target_link_libraries(velos_texture_tests PRIVATE velos_texture)
+    add_test(NAME velos.texture COMMAND velos_texture_tests)
 endif()

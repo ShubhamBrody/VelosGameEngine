@@ -26,7 +26,7 @@ using namespace DirectX;
 namespace {
 
 constexpr UINT frameCount = 2;
-constexpr UINT descriptorCount = 512;
+constexpr UINT descriptorCount = 4096;
 constexpr UINT maxObjects = 10000;
 constexpr UINT objectStride = 256;
 constexpr UINT frameDataSize = 1024;
@@ -87,6 +87,8 @@ struct ObjectConstants {
     XMFLOAT4 color;
     XMFLOAT4 material;
     XMFLOAT4 options;
+    XMFLOAT4 uvTransform;
+    XMFLOAT4 emission;
 };
 static_assert(sizeof(ObjectConstants) <= objectStride);
 
@@ -176,6 +178,7 @@ struct Renderer::Impl {
     ComPtr<ID3D12PipelineState> wirePipeline;
     ComPtr<ID3D12PipelineState> shadowPipeline;
     ComPtr<ID3D12PipelineState> backgroundPipeline;
+    std::array<ComPtr<ID3D12PipelineState>, 4> surfacePipelines;
     HMODULE dxcModule = nullptr;
     std::string compilerDigest;
     DiskCache shaderCache;
@@ -190,6 +193,42 @@ struct Renderer::Impl {
         UINT indexCount = 0;
     };
     std::map<std::string, GpuMesh> meshes;
+    struct GpuTexture { ComPtr<ID3D12Resource> resource; UINT descriptor = 0; };
+    std::map<std::string, GpuTexture> textures;
+    std::map<std::array<std::string, 4>, UINT> materialTables;
+
+    UINT allocateDescriptors(UINT count) {
+        for (UINT first = 8; first + count <= descriptorCount; ++first) {
+            bool available = true;
+            for (UINT offset = 0; offset < count; ++offset) { if (descriptors[first + offset]) { available = false; break; } }
+            if (!available) { continue; }
+            for (UINT offset = 0; offset < count; ++offset) { descriptors[first + offset] = true; }
+            return first;
+        }
+        throw std::runtime_error("GPU descriptor budget exhausted.");
+    }
+
+    UINT materialTable(const Material& material) {
+        std::array<std::string, 4> keys;
+        for (std::size_t slot = 0; slot < keys.size(); ++slot) {
+            const auto requested = textureKey(material.textures[slot], static_cast<TextureSlot>(slot));
+            keys[slot] = textures.contains(requested) ? requested : "__default" + std::to_string(slot);
+        }
+        if (const auto found = materialTables.find(keys); found != materialTables.end()) { return found->second; }
+        const auto first = allocateDescriptors(4);
+        for (UINT slot = 0; slot < 4; ++slot) {
+            const auto& texture = textures.at(keys[slot]);
+            const auto resource = texture.resource->GetDesc();
+            D3D12_SHADER_RESOURCE_VIEW_DESC view{};
+            view.Format = resource.Format;
+            view.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+            view.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+            view.Texture2D.MipLevels = resource.MipLevels;
+            device->CreateShaderResourceView(texture.resource.Get(), &view, srvCpu(first + slot));
+        }
+        materialTables.emplace(keys, first);
+        return first;
+    }
 
     Impl(HWND handle, const std::string& preference, bool debug)
         : window(handle), shaderCache(localDataDirectory() / L"cache" / L"shaders", 128 * 1024 * 1024) {
@@ -260,7 +299,7 @@ struct Renderer::Impl {
         rtvStride = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
         dsvStride = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
         srvStride = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-        descriptors[0] = descriptors[1] = true;
+        for (UINT index = 0; index < 8; ++index) { descriptors[index] = true; }
         check(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence)), "Create frame fence");
         fenceEvent = CreateEventW(nullptr, FALSE, FALSE, nullptr);
         if (!fenceEvent) { throw std::runtime_error("Cannot create GPU fence event."); }
@@ -435,7 +474,12 @@ struct Renderer::Impl {
         range.NumDescriptors = 1;
         range.BaseShaderRegister = 0;
         range.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
-        std::array<D3D12_ROOT_PARAMETER, 3> parameters{};
+        D3D12_DESCRIPTOR_RANGE maps{};
+        maps.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+        maps.NumDescriptors = 4;
+        maps.BaseShaderRegister = 1;
+        maps.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+        std::array<D3D12_ROOT_PARAMETER, 4> parameters{};
         parameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
         parameters[0].Descriptor.ShaderRegister = 0;
         parameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
@@ -446,6 +490,10 @@ struct Renderer::Impl {
         parameters[2].DescriptorTable.NumDescriptorRanges = 1;
         parameters[2].DescriptorTable.pDescriptorRanges = &range;
         parameters[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+        parameters[3].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+        parameters[3].DescriptorTable.NumDescriptorRanges = 1;
+        parameters[3].DescriptorTable.pDescriptorRanges = &maps;
+        parameters[3].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
         D3D12_STATIC_SAMPLER_DESC sampler{};
         sampler.Filter = D3D12_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT;
         sampler.AddressU = sampler.AddressV = sampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
@@ -454,11 +502,18 @@ struct Renderer::Impl {
         sampler.MaxLOD = D3D12_FLOAT32_MAX;
         sampler.MaxAnisotropy = 1;
         sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+        auto materialSampler = sampler;
+        materialSampler.Filter = D3D12_FILTER_ANISOTROPIC;
+        materialSampler.AddressU = materialSampler.AddressV = materialSampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+        materialSampler.ComparisonFunc = D3D12_COMPARISON_FUNC_ALWAYS;
+        materialSampler.MaxAnisotropy = 4;
+        materialSampler.ShaderRegister = 1;
+        const std::array samplers{sampler, materialSampler};
         D3D12_ROOT_SIGNATURE_DESC description{};
         description.NumParameters = static_cast<UINT>(parameters.size());
         description.pParameters = parameters.data();
-        description.NumStaticSamplers = 1;
-        description.pStaticSamplers = &sampler;
+        description.NumStaticSamplers = static_cast<UINT>(samplers.size());
+        description.pStaticSamplers = samplers.data();
         description.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
         ComPtr<ID3DBlob> serialized;
         ComPtr<ID3DBlob> errors;
@@ -497,6 +552,7 @@ struct Renderer::Impl {
         const auto vertex = compile(source, L"VSMain", L"vs_6_0");
         const auto pixel = compile(source, L"PSMain", L"ps_6_0");
         const auto shadowVertex = compile(source, L"VSShadow", L"vs_6_0");
+        const auto shadowPixel = compile(source, L"PSShadow", L"ps_6_0");
         const auto backgroundVertex = compile(source, L"VSBackground", L"vs_6_0");
         const auto backgroundPixel = compile(source, L"PSBackground", L"ps_6_0");
         constexpr D3D12_INPUT_ELEMENT_DESC input[] = {
@@ -537,12 +593,26 @@ struct Renderer::Impl {
         ComPtr<ID3D12PipelineState> nextWire;
         ComPtr<ID3D12PipelineState> nextShadow;
         ComPtr<ID3D12PipelineState> nextBackground;
+        std::array<ComPtr<ID3D12PipelineState>, 4> nextSurfaces;
         check(device->CreateGraphicsPipelineState(&description, IID_PPV_ARGS(&nextLit)), "Create scene pipeline");
+        for (UINT mode = 0; mode < 4; ++mode) {
+            description.RasterizerState.CullMode = mode % 2 == 0 ? D3D12_CULL_MODE_BACK : D3D12_CULL_MODE_NONE;
+            description.BlendState.RenderTarget[0].BlendEnable = mode >= 2;
+            description.BlendState.RenderTarget[0].SrcBlend = mode >= 2 ? D3D12_BLEND_SRC_ALPHA : D3D12_BLEND_ONE;
+            description.BlendState.RenderTarget[0].DestBlend = mode >= 2 ? D3D12_BLEND_INV_SRC_ALPHA : D3D12_BLEND_ZERO;
+            description.DepthStencilState.DepthWriteMask = mode >= 2 ? D3D12_DEPTH_WRITE_MASK_ZERO : D3D12_DEPTH_WRITE_MASK_ALL;
+            check(device->CreateGraphicsPipelineState(&description, IID_PPV_ARGS(&nextSurfaces[mode])), "Create material surface pipeline");
+        }
+        description.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+        description.BlendState.RenderTarget[0].BlendEnable = FALSE;
+        description.BlendState.RenderTarget[0].SrcBlend = D3D12_BLEND_ONE;
+        description.BlendState.RenderTarget[0].DestBlend = D3D12_BLEND_ZERO;
+        description.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
         description.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
         check(device->CreateGraphicsPipelineState(&description, IID_PPV_ARGS(&nextWire)), "Create wireframe pipeline");
         description.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
         description.VS = {shadowVertex.data(), shadowVertex.size()};
-        description.PS = {};
+        description.PS = {shadowPixel.data(), shadowPixel.size()};
         description.NumRenderTargets = 0;
         description.RTVFormats[0] = DXGI_FORMAT_UNKNOWN;
         description.RasterizerState.DepthBias = 1200;
@@ -563,6 +633,7 @@ struct Renderer::Impl {
         wirePipeline = std::move(nextWire);
         shadowPipeline = std::move(nextShadow);
         backgroundPipeline = std::move(nextBackground);
+        surfacePipelines = std::move(nextSurfaces);
     }
 
     void draw(const RenderFrame& frame, ImDrawData* ui, bool vsync) {
@@ -612,7 +683,9 @@ struct Renderer::Impl {
             XMStoreFloat4x4(&data.normal, XMMatrixTranspose(XMMatrixInverse(nullptr, XMLoadFloat4x4(&object.world))));
             data.color = object.color;
             data.material = {object.roughness, object.metallic, object.selected ? 1.0f : 0.0f, object.unlit ? 1.0f : 0.0f};
-            data.options = {object.grid ? 1.0f : 0.0f, 0, 0, 0};
+            data.options = {object.grid ? 1.0f : 0.0f, static_cast<float>(object.surface), object.alphaCutoff, object.normalStrength};
+            data.uvTransform = {object.uvScale.x, object.uvScale.y, object.uvOffset.x, object.uvOffset.y};
+            data.emission = {object.emission.x, object.emission.y, object.emission.z, object.emissionStrength};
             std::memcpy(slot.mapped + frameDataSize + index * objectStride, &data, sizeof(data));
         }
         check(slot.allocator->Reset(), "Reset frame allocator");
@@ -630,6 +703,7 @@ struct Renderer::Impl {
             const auto fallback = meshes.find("cube");
             if (found == meshes.end() && fallback == meshes.end()) { return; }
             const auto& mesh = found != meshes.end() ? found->second : fallback->second;
+            commands->SetGraphicsRootDescriptorTable(3, srvGpu(materialTable(frame.objects[index])));
             commands->SetGraphicsRootConstantBufferView(1, slot.upload->GetGPUVirtualAddress() + frameDataSize + index * objectStride);
             commands->IASetVertexBuffers(0, 1, &mesh.vertexView);
             commands->IASetIndexBuffer(&mesh.indexView);
@@ -649,7 +723,7 @@ struct Renderer::Impl {
             commands->ClearDepthStencilView(depthHandle, D3D12_CLEAR_FLAG_DEPTH, 1, 0, 0, nullptr);
             commands->SetPipelineState(shadowPipeline.Get());
             for (std::size_t index = 0; index < frame.objects.size(); ++index) {
-                if (frame.objects[index].castShadow && !frame.objects[index].unlit) { drawObject(index); }
+                if (frame.objects[index].castShadow && !frame.objects[index].unlit && frame.objects[index].surface != SurfaceMode::Transparent) { drawObject(index); }
             }
             barrier = transition(shadow.Get(), D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
             commands->ResourceBarrier(1, &barrier);
@@ -675,6 +749,8 @@ struct Renderer::Impl {
             BoundingFrustum::CreateFromMatrix(localFrustum, frame.camera.projection(), true);
             localFrustum.Transform(worldFrustum, XMMatrixInverse(nullptr, frame.camera.view()));
         }
+        std::vector<std::size_t> visible;
+        visible.reserve(frame.objects.size());
         for (std::size_t index = 0; index < frame.objects.size(); ++index) {
             const auto& object = frame.objects[index];
             const auto found = meshes.find(object.mesh);
@@ -683,6 +759,24 @@ struct Renderer::Impl {
                 found->second.bounds.Transform(worldBounds, XMLoadFloat4x4(&object.world));
                 if (worldFrustum.Contains(worldBounds) == DISJOINT) { continue; }
             }
+            visible.push_back(index);
+        }
+        std::stable_sort(visible.begin(), visible.end(), [&](std::size_t left, std::size_t right) {
+            const auto& first = frame.objects[left];
+            const auto& second = frame.objects[right];
+            const bool firstTransparent = first.surface == SurfaceMode::Transparent;
+            const bool secondTransparent = second.surface == SurfaceMode::Transparent;
+            if (firstTransparent != secondTransparent) { return !firstTransparent; }
+            if (!firstTransparent) { return false; }
+            const auto eye = frame.camera.eye();
+            const auto firstDistance = XMVectorGetX(XMVector3LengthSq(XMVectorSubtract(XMLoadFloat4x4(&first.world).r[3], eye)));
+            const auto secondDistance = XMVectorGetX(XMVector3LengthSq(XMVectorSubtract(XMLoadFloat4x4(&second.world).r[3], eye)));
+            return firstDistance > secondDistance;
+        });
+        for (const auto index : visible) {
+            const auto& object = frame.objects[index];
+            const auto pipeline = (object.surface == SurfaceMode::Transparent ? 2u : 0u) + (object.doubleSided ? 1u : 0u);
+            commands->SetPipelineState(frame.wireframe ? wirePipeline.Get() : surfacePipelines[pipeline].Get());
             drawObject(index);
             ++statistics.visibleObjects;
         }
@@ -729,6 +823,10 @@ struct Renderer::Impl {
 
 Renderer::Renderer(HWND window, const std::string& preference, bool debug)
     : impl_(std::make_unique<Impl>(window, preference, debug)) {
+    addTexture("__default0", solidTexture({255,255,255,255}, true));
+    addTexture("__default1", solidTexture({128,128,255,255}));
+    addTexture("__default2", solidTexture({255,255,255,255}));
+    addTexture("__default3", solidTexture({255,255,255,255}, true));
     addMesh("cube", makeCube());
     addMesh("sphere", makeSphere());
     addMesh("plane", makePlane());
@@ -751,7 +849,7 @@ void Renderer::initializeUi() {
     information.UserData = impl_.get();
     information.SrvDescriptorAllocFn = [](ImGui_ImplDX12_InitInfo* info, D3D12_CPU_DESCRIPTOR_HANDLE* cpu, D3D12_GPU_DESCRIPTOR_HANDLE* gpu) {
         auto& implementation = *static_cast<Impl*>(info->UserData);
-        for (UINT index = 2; index < descriptorCount; ++index) {
+        for (UINT index = 8; index < descriptorCount; ++index) {
             if (!implementation.descriptors[index]) {
                 implementation.descriptors[index] = true;
                 *cpu = implementation.srvCpu(index);
@@ -764,7 +862,7 @@ void Renderer::initializeUi() {
     information.SrvDescriptorFreeFn = [](ImGui_ImplDX12_InitInfo* info, D3D12_CPU_DESCRIPTOR_HANDLE cpu, D3D12_GPU_DESCRIPTOR_HANDLE) {
         auto& implementation = *static_cast<Impl*>(info->UserData);
         const auto index = static_cast<UINT>((cpu.ptr - implementation.srvCpu(0).ptr) / implementation.srvStride);
-        if (index >= 2 && index < descriptorCount) { implementation.retiredDescriptors.emplace_back(index, implementation.nextFence); }
+        if (index >= 8 && index < descriptorCount) { implementation.retiredDescriptors.emplace_back(index, implementation.nextFence + frameCount); }
     };
     if (!ImGui_ImplDX12_Init(&information)) { throw std::runtime_error("Cannot initialize the D3D12 editor renderer."); }
     impl_->uiReady = true;
@@ -854,6 +952,77 @@ const BoundingBox* Renderer::meshBounds(const std::string& key) const {
 }
 
 bool Renderer::hasMesh(const std::string& key) const { return impl_->meshes.contains(key); }
+bool Renderer::hasTexture(const std::string& key) const { return impl_->textures.contains(key); }
+
+void Renderer::addTexture(const std::string& key, const TextureData& texture) {
+    if (impl_->textures.contains(key)) { return; }
+    texture.validate();
+    D3D12_RESOURCE_DESC description{};
+    description.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+    description.Width = texture.mips.front().width;
+    description.Height = texture.mips.front().height;
+    description.DepthOrArraySize = 1;
+    description.MipLevels = static_cast<UINT16>(texture.mips.size());
+    description.Format = texture.format;
+    description.SampleDesc.Count = 1;
+    const auto allocation = impl_->device->GetResourceAllocationInfo(0, 1, &description);
+    if (allocation.SizeInBytes > 256 * 1024 * 1024 || impl_->statistics.textureBytes + allocation.SizeInBytes > 256 * 1024 * 1024) {
+        throw std::runtime_error("Texture residency budget exceeded (256 MB). Use lower texture resolution or fewer textures.");
+    }
+    const auto heap = heapProperties(D3D12_HEAP_TYPE_DEFAULT);
+    Impl::GpuTexture gpu;
+    check(impl_->device->CreateCommittedResource(&heap, D3D12_HEAP_FLAG_NONE, &description,
+        D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&gpu.resource)), "Allocate material texture");
+    const auto count = static_cast<UINT>(texture.mips.size());
+    std::vector<D3D12_PLACED_SUBRESOURCE_FOOTPRINT> footprints(count);
+    std::vector<UINT> rows(count);
+    std::vector<UINT64> rowSizes(count);
+    UINT64 total = 0;
+    impl_->device->GetCopyableFootprints(&description, 0, count, 0, footprints.data(), rows.data(), rowSizes.data(), &total);
+    auto upload = impl_->createBuffer(total, D3D12_HEAP_TYPE_UPLOAD, D3D12_RESOURCE_STATE_GENERIC_READ);
+    std::byte* mapped = nullptr;
+    const D3D12_RANGE empty{0,0};
+    check(upload->Map(0, &empty, reinterpret_cast<void**>(&mapped)), "Map texture upload");
+    for (UINT mip = 0; mip < count; ++mip) {
+        const auto& source = texture.mips[mip];
+        if (source.rowPitch != rowSizes[mip] || source.pixels.size() < source.rowPitch * rows[mip]) {
+            upload->Unmap(0, nullptr);
+            throw std::runtime_error("Texture subresource layout does not match its GPU footprint.");
+        }
+        for (UINT row = 0; row < rows[mip]; ++row) {
+            std::memcpy(mapped + footprints[mip].Offset + static_cast<std::size_t>(row) * footprints[mip].Footprint.RowPitch,
+                source.pixels.data() + row * source.rowPitch, source.rowPitch);
+        }
+    }
+    upload->Unmap(0, nullptr);
+    impl_->immediate([&](ID3D12GraphicsCommandList* commands) {
+        for (UINT mip = 0; mip < count; ++mip) {
+            D3D12_TEXTURE_COPY_LOCATION destination{};
+            destination.pResource = gpu.resource.Get();
+            destination.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+            destination.SubresourceIndex = mip;
+            D3D12_TEXTURE_COPY_LOCATION source{};
+            source.pResource = upload.Get();
+            source.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+            source.PlacedFootprint = footprints[mip];
+            commands->CopyTextureRegion(&destination, 0,0,0, &source, nullptr);
+        }
+        const auto barrier = transition(gpu.resource.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+        commands->ResourceBarrier(1, &barrier);
+    });
+    gpu.descriptor = impl_->allocateDescriptors(1);
+    D3D12_SHADER_RESOURCE_VIEW_DESC view{};
+    view.Format = texture.format;
+    view.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+    view.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    view.Texture2D.MipLevels = count;
+    impl_->device->CreateShaderResourceView(gpu.resource.Get(), &view, impl_->srvCpu(gpu.descriptor));
+    gpu.resource->SetName(wide(key).c_str());
+    impl_->textures.emplace(key, std::move(gpu));
+    impl_->statistics.textureBytes += allocation.SizeInBytes;
+    impl_->statistics.textureCount = static_cast<UINT>(impl_->textures.size());
+}
+
 void Renderer::render(const RenderFrame& frame, ImDrawData* ui, bool vsync) { impl_->draw(frame, ui, vsync); }
 void Renderer::waitIdle() { impl_->idle(); }
 

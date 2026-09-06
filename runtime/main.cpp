@@ -57,10 +57,22 @@ int main(int argc, char** argv) {
         if (frameLimit == 0) { FreeConsole(); }
         velos::Renderer renderer(window.handle(), adapter, debug);
         velos::DiskCache cache(velos::localDataDirectory() / L"cache" / L"geometry", 512 * 1024 * 1024);
+        velos::DiskCache textureCache(velos::localDataDirectory() / L"cache" / L"textures", 512 * 1024 * 1024);
         for (const auto id : scene.entities()) {
             const auto* mesh = scene.get<velos::MeshRenderer>(id);
             if (mesh && !renderer.hasMesh(mesh->mesh)) {
                 renderer.addMesh(mesh->mesh, velos::loadGlb(velos::projectAssetPath(scenePath.parent_path(), mesh->mesh), cache));
+            }
+            if (mesh) {
+                for (std::size_t slot = 0; slot < mesh->textures.size(); ++slot) {
+                    const auto& reference = mesh->textures[slot];
+                    if (reference.empty()) { continue; }
+                    const auto type = static_cast<velos::TextureSlot>(slot);
+                    const auto key = velos::textureKey(reference, type);
+                    if (!renderer.hasTexture(key)) {
+                        renderer.addTexture(key, velos::loadTexture(velos::projectAssetPath(scenePath.parent_path(), reference), {type}, textureCache));
+                    }
+                }
             }
         }
         velos::PhysicsWorld physics;

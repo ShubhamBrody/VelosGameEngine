@@ -5,6 +5,7 @@
 #include <cmath>
 #include <limits>
 #include <stdexcept>
+#include <set>
 
 namespace velos {
 using namespace DirectX;
@@ -208,6 +209,16 @@ Json Scene::entityJson(EntityId id) const {
     if (const auto* mesh = get<MeshRenderer>(id)) {
         result["mesh"] = {{"asset", mesh->mesh}, {"color", {mesh->color.x, mesh->color.y, mesh->color.z, mesh->color.w}},
             {"roughness", mesh->roughness}, {"metallic", mesh->metallic}, {"shadow", mesh->castShadow}, {"unlit", mesh->unlit}};
+        auto& material = result["mesh"];
+        material["textures"] = mesh->textures;
+        material["uvScale"] = {mesh->uvScale.x, mesh->uvScale.y};
+        material["uvOffset"] = {mesh->uvOffset.x, mesh->uvOffset.y};
+        material["emission"] = {mesh->emission.x, mesh->emission.y, mesh->emission.z};
+        material["emissionStrength"] = mesh->emissionStrength;
+        material["normalStrength"] = mesh->normalStrength;
+        material["alphaCutoff"] = mesh->alphaCutoff;
+        material["surface"] = static_cast<std::uint32_t>(mesh->surface);
+        material["doubleSided"] = mesh->doubleSided;
     }
     if (const auto* light = get<Light>(id)) {
         result["light"] = {{"kind", light->kind == LightKind::Directional ? "directional" : "point"},
@@ -232,6 +243,19 @@ Json Scene::toJson() const {
 }
 
 std::string Scene::serialize() const { return toJson().dump(2); }
+
+std::vector<std::string> Scene::assetReferences() const {
+    std::set<std::string> references;
+    for (const auto id : order_) {
+        const auto* mesh = get<MeshRenderer>(id);
+        if (!mesh) { continue; }
+        if (mesh->mesh != "cube" && mesh->mesh != "sphere" && mesh->mesh != "plane" && mesh->mesh != "quad") {
+            references.insert(mesh->mesh);
+        }
+        for (const auto& texture : mesh->textures) { if (!texture.empty()) { references.insert(texture); } }
+    }
+    return {references.begin(), references.end()};
+}
 
 bool Scene::deserialize(std::string_view text, std::string& error) {
     try {
@@ -290,6 +314,41 @@ bool Scene::deserialize(std::string_view text, std::string& error) {
                 mesh.metallic = bounded(source, "metallic", 0.0f, 0.0f, 1.0f);
                 mesh.castShadow = source.value("shadow", true);
                 mesh.unlit = source.value("unlit", false);
+                if (source.contains("textures")) {
+                    const auto& textures = source.at("textures");
+                    if (!textures.is_array() || textures.size() != mesh.textures.size()) { throw std::runtime_error("A material must have four texture slots."); }
+                    for (std::size_t slot = 0; slot < mesh.textures.size(); ++slot) {
+                        mesh.textures[slot] = textures[slot].get<std::string>();
+                        const auto& path = mesh.textures[slot];
+                        if (path.empty()) { continue; }
+                        if (path.size() > 1024 || !path.starts_with("Assets/") || path.find("..") != std::string::npos
+                            || path.find_first_of(":\\") != std::string::npos || path.find('\0') != std::string::npos) {
+                            throw std::runtime_error("Texture references must be safe project-relative Assets paths.");
+                        }
+                    }
+                }
+                if (source.contains("uvScale")) {
+                    const auto scaleValues = values<2>(source.at("uvScale"));
+                    mesh.uvScale = {scaleValues[0], scaleValues[1]};
+                }
+                if (source.contains("uvOffset")) {
+                    const auto offset = values<2>(source.at("uvOffset"));
+                    mesh.uvOffset = {offset[0], offset[1]};
+                }
+                if (source.contains("emission")) {
+                    const auto emission = values<3>(source.at("emission"));
+                    for (const auto channel : emission) {
+                        if (channel < 0 || channel > 1) { throw std::runtime_error("Emission color must be in [0,1]."); }
+                    }
+                    mesh.emission = {emission[0], emission[1], emission[2]};
+                }
+                mesh.emissionStrength = bounded(source, "emissionStrength", 0, 0, 100);
+                mesh.normalStrength = bounded(source, "normalStrength", 1, 0, 4);
+                mesh.alphaCutoff = bounded(source, "alphaCutoff", 0.5f, 0, 1);
+                const auto surface = source.value("surface", 0);
+                if (surface < 0 || surface > 2) { throw std::runtime_error("Unsupported material surface mode."); }
+                mesh.surface = static_cast<SurfaceMode>(surface);
+                mesh.doubleSided = source.value("doubleSided", true);
                 candidate.set<MeshRenderer>(id, mesh);
             }
             if (entity.contains("light")) {

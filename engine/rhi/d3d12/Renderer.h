@@ -1,6 +1,7 @@
 #pragma once
 
 #include "assets/Mesh.h"
+#include "assets/Texture.h"
 #include "render/RenderFrame.h"
 
 #include <Windows.h>
@@ -27,6 +28,8 @@ public:
     void setShadowResolution(std::uint32_t size);
     [[nodiscard]] std::uint64_t sceneTexture() const;
     void addMesh(const std::string& key, const MeshData& mesh);
+    void addTexture(const std::string& key, const TextureData& texture);
+    [[nodiscard]] bool hasTexture(const std::string& key) const;
     [[nodiscard]] const DirectX::BoundingBox* meshBounds(const std::string& key) const;
     [[nodiscard]] bool hasMesh(const std::string& key) const;
     void render(const RenderFrame& frame, ImDrawData* ui, bool vsync = true);

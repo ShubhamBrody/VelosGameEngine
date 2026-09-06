@@ -19,10 +19,17 @@ cbuffer ObjectData : register(b1) {
     float4 baseColor;
     float4 material;
     float4 objectOptions;
+    float4 uvTransform;
+    float4 emissionColorStrength;
 };
 
 Texture2D<float> shadowMap : register(t0);
 SamplerComparisonState shadowSampler : register(s0);
+Texture2D<float4> albedoMap : register(t1);
+Texture2D<float4> normalMap : register(t2);
+Texture2D<float4> ormMap : register(t3);
+Texture2D<float4> emissionMap : register(t4);
+SamplerState materialSampler : register(s1);
 
 struct VertexInput {
     float3 position : POSITION;
@@ -43,12 +50,39 @@ VertexOutput VSMain(VertexInput input) {
     output.position = mul(worldPosition, viewProjection);
     output.worldPosition = worldPosition.xyz;
     output.normal = mul(float4(input.normal, 0), normalWorld).xyz;
-    output.uv = input.uv;
+    output.uv = input.uv * uvTransform.xy + uvTransform.zw;
     return output;
 }
 
-float4 VSShadow(VertexInput input) : SV_POSITION {
-    return mul(mul(float4(input.position, 1), world), lightViewProjection);
+VertexOutput VSShadow(VertexInput input) {
+    VertexOutput output = VSMain(input);
+    output.position = mul(float4(output.worldPosition, 1), lightViewProjection);
+    return output;
+}
+
+void PSShadow(VertexOutput input) {
+    if (objectOptions.y > 0.5) { clip(albedoMap.Sample(materialSampler, input.uv).a * baseColor.a - objectOptions.z); }
+}
+
+float3 mappedNormal(VertexOutput input) {
+    float3 normal = normalize(input.normal);
+    float3 positionX = ddx(input.worldPosition);
+    float3 positionY = ddy(input.worldPosition);
+    float2 uvX = ddx(input.uv);
+    float2 uvY = ddy(input.uv);
+    float determinant = uvX.x * uvY.y - uvX.y * uvY.x;
+    if (abs(determinant) < 0.0000001) { return normal; }
+    float3 tangent = (positionX * uvY.y - positionY * uvX.y) / determinant;
+    tangent -= normal * dot(normal, tangent);
+    float tangentLength = dot(tangent, tangent);
+    if (tangentLength < 0.0000001) { return normal; }
+    tangent *= rsqrt(tangentLength);
+    float3 bitangent = normalize(cross(normal, tangent));
+    float3 sourceBitangent = (-positionX * uvY.x + positionY * uvX.x) / determinant;
+    bitangent *= dot(bitangent, sourceBitangent) < 0 ? -1 : 1;
+    float2 normalXY = (normalMap.Sample(materialSampler, input.uv).xy * 2 - 1) * objectOptions.w;
+    float normalZ = sqrt(saturate(1 - dot(normalXY, normalXY)));
+    return normalize(tangent * normalXY.x + bitangent * normalXY.y + normal * normalZ);
 }
 
 float3 fresnel(float cosine, float3 reflectance) {
@@ -97,21 +131,28 @@ float3 tonemap(float3 color) {
 }
 
 float4 PSMain(VertexOutput input) : SV_TARGET {
-    float3 normal = normalize(input.normal);
-    float3 albedo = pow(saturate(baseColor.rgb), 2.2);
+    float4 sampledAlbedo = albedoMap.Sample(materialSampler, input.uv);
+    float opacity = sampledAlbedo.a * baseColor.a;
+    if (objectOptions.y > 0.5 && objectOptions.y < 1.5) { clip(opacity - objectOptions.z); }
+    float3 normal = mappedNormal(input);
+    float3 albedo = pow(saturate(baseColor.rgb), 2.2) * sampledAlbedo.rgb;
+    float3 orm = ormMap.Sample(materialSampler, input.uv).rgb;
+    float roughness = clamp(material.x * orm.g, 0.04, 1);
+    float metallic = saturate(material.y * orm.b);
+    float3 emission = pow(emissionColorStrength.rgb, 2.2) * emissionColorStrength.w * emissionMap.Sample(materialSampler, input.uv).rgb;
     if (objectOptions.x > 0.5) {
         float2 derivative = max(fwidth(input.worldPosition.xz), 0.0001.xx);
         float2 gridDistance = abs(frac(input.worldPosition.xz - 0.5) - 0.5) / derivative;
         float gridLine = 1 - saturate(min(gridDistance.x, gridDistance.y));
         albedo = lerp(albedo, albedo * 1.42, gridLine * 0.55);
     }
-    if (material.w > 0.5) { return float4(baseColor.rgb, 1); }
+    if (material.w > 0.5) { return float4(pow(saturate(albedo), 1.0 / 2.2), opacity); }
     float3 viewDirection = normalize(eyeExposure.xyz - input.worldPosition);
     float3 sunDirection = normalize(-sunDirectionAmbient.xyz);
     float hemisphere = saturate(normal.y * 0.5 + 0.5);
     float3 ambientColor = lerp(float3(0.14, 0.16, 0.18), float3(0.65, 0.74, 0.8), hemisphere);
-    float3 color = albedo * ambientColor * sunDirectionAmbient.w;
-    color += evaluateLight(normal, viewDirection, sunDirection, albedo, material.x, material.y,
+    float3 color = albedo * ambientColor * sunDirectionAmbient.w * orm.r + emission;
+    color += evaluateLight(normal, viewDirection, sunDirection, albedo, roughness, metallic,
         sunColorIntensity.rgb * sunColorIntensity.w) * visibility(input.worldPosition, saturate(dot(normal, sunDirection)));
     for (uint lightIndex = 0; lightIndex < (uint)settings.y; ++lightIndex) {
         PointLight light = pointLights[lightIndex];
@@ -119,13 +160,13 @@ float4 PSMain(VertexOutput input) : SV_TARGET {
         float distanceSquared = max(dot(offset, offset), 0.01);
         float fade = saturate(1 - distanceSquared / (light.positionRange.w * light.positionRange.w));
         float3 radiance = light.colorIntensity.rgb * light.colorIntensity.w * fade * fade / distanceSquared;
-        color += evaluateLight(normal, viewDirection, normalize(offset), albedo, material.x, material.y, radiance);
+        color += evaluateLight(normal, viewDirection, normalize(offset), albedo, roughness, metallic, radiance);
     }
     if (material.z > 0.5) {
         float rim = pow(1 - saturate(dot(normal, viewDirection)), 3);
         color += float3(0.08, 0.65, 0.47) * (0.08 + rim * 0.7);
     }
-    return float4(tonemap(color), 1);
+    return float4(tonemap(color), objectOptions.y > 1.5 ? opacity : 1);
 }
 
 struct BackgroundOutput {

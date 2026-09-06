@@ -95,7 +95,8 @@ void configureStyle() {
 
 Editor::Editor(HWND window, Renderer& renderer, bool isolated)
         : window_(window), renderer_(renderer), scene_(Scene::demo()), assistant_(isolated),
-            geometryCache_(localDataDirectory() / L"cache" / L"geometry", 512 * 1024 * 1024), isolated_(isolated) {
+            geometryCache_(localDataDirectory() / L"cache" / L"geometry", 512 * 1024 * 1024),
+            textureCache_(localDataDirectory() / L"cache" / L"textures", 512 * 1024 * 1024), isolated_(isolated) {
     auto& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable | ImGuiConfigFlags_NavEnableKeyboard;
     layoutPath_ = utf8((localDataDirectory() / L"editor-layout.ini").native());
@@ -126,6 +127,22 @@ void Editor::log(std::string message, bool error) {
 }
 
 void Editor::update(double elapsed) {
+    if (textureImport_.valid() && textureImport_.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+        try {
+            auto imported = textureImport_.get();
+            auto* material = scene_.get<MeshRenderer>(imported.entity);
+            if (!material || scenePath_.parent_path() != imported.project || scene_.revision() != imported.revision) {
+                throw std::runtime_error("Texture import completed after the scene changed. Select the texture again to apply it.");
+            }
+            renderer_.addTexture(textureKey(imported.reference, imported.slot), imported.texture);
+            history_.begin(scene_);
+            material->textures[static_cast<std::size_t>(imported.slot)] = imported.reference;
+            scene_.touch();
+            history_.commit(scene_, "Assign material texture");
+            log("Texture assigned: " + std::to_string(imported.texture.mips.front().width) + " x "
+                + std::to_string(imported.texture.mips.front().height) + ", " + std::to_string(imported.texture.mips.size()) + " mip levels.");
+        } catch (const std::exception& error) { log(error.what(), true); }
+    }
     if (export_.valid() && export_.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
         try { log("Runtime exported to " + utf8(export_.get().native())); }
         catch (const std::exception& error) { log(error.what(), true); }
@@ -170,7 +187,7 @@ void Editor::update(double elapsed) {
 }
 
 void Editor::startPlay() {
-    if (import_.valid()) { log("Wait for the current import before starting simulation."); return; }
+    if (import_.valid() || textureImport_.valid()) { log("Wait for the current import before starting simulation."); return; }
     assistant_.cancel();
     if (playing_) { paused_ = !paused_; return; }
     try { physics_.start(scene_); }
@@ -454,13 +471,50 @@ void Editor::inspector() {
             if (auto* mesh = scene_.get<MeshRenderer>(selected_)) {
                 ImGui::SeparatorText("Material");
                 ImGui::TextDisabled("%s", mesh->mesh.c_str());
-                changed_ |= ImGui::ColorEdit3("Albedo", &mesh->color.x, ImGuiColorEditFlags_NoInputs);
+                changed_ |= ImGui::ColorEdit4("Albedo", &mesh->color.x, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
                 ImGui::SetNextItemWidth(-90);
                 changed_ |= ImGui::SliderFloat("Roughness", &mesh->roughness, 0.04f, 1, "%.2f");
                 ImGui::SetNextItemWidth(-90);
                 changed_ |= ImGui::SliderFloat("Metallic", &mesh->metallic, 0, 1, "%.2f");
                 changed_ |= ImGui::Checkbox("Cast shadow", &mesh->castShadow);
                 changed_ |= ImGui::Checkbox("Unlit", &mesh->unlit);
+                changed_ |= ImGui::Checkbox("Double sided", &mesh->doubleSided);
+                int surface = static_cast<int>(mesh->surface);
+                ImGui::SetNextItemWidth(-85);
+                if (ImGui::Combo("Surface", &surface, "Opaque\0Alpha clip\0Transparent\0")) { mesh->surface = static_cast<SurfaceMode>(surface); changed_ = true; }
+                if (mesh->surface == SurfaceMode::Masked) {
+                    ImGui::SetNextItemWidth(-85);
+                    changed_ |= ImGui::SliderFloat("Alpha cutoff", &mesh->alphaCutoff, 0, 1);
+                }
+                if (ImGui::CollapsingHeader("Texture maps", ImGuiTreeNodeFlags_DefaultOpen)) {
+                    constexpr const char* names[] = {"Albedo", "Normal", "ORM", "Emissive"};
+                    for (std::size_t slot = 0; slot < mesh->textures.size(); ++slot) {
+                        ImGui::PushID(static_cast<int>(slot));
+                        ImGui::TextUnformatted(names[slot]);
+                        ImGui::SameLine(85);
+                        ImGui::BeginDisabled(textureImport_.valid() || import_.valid());
+                        if (iconButton("\uE8E5", "Import texture")) { chooseTexture(static_cast<TextureSlot>(slot)); }
+                        ImGui::SameLine();
+                        ImGui::BeginDisabled(mesh->textures[slot].empty());
+                        if (iconButton("\uE74D", "Remove texture")) { mesh->textures[slot].clear(); changed_ = true; }
+                        ImGui::EndDisabled();
+                        ImGui::EndDisabled();
+                        ImGui::SameLine();
+                        ImGui::TextDisabled("%s", mesh->textures[slot].empty() ? "None" : "Set");
+                        if (ImGui::IsItemHovered() && !mesh->textures[slot].empty()) { ImGui::SetTooltip("%s", mesh->textures[slot].c_str()); }
+                        ImGui::PopID();
+                    }
+                    ImGui::SetNextItemWidth(-85);
+                    changed_ |= ImGui::DragFloat2("UV scale", &mesh->uvScale.x, 0.02f, -100, 100, "%.2f");
+                    ImGui::SetNextItemWidth(-85);
+                    changed_ |= ImGui::DragFloat2("UV offset", &mesh->uvOffset.x, 0.01f, -100, 100, "%.2f");
+                    ImGui::SetNextItemWidth(-85);
+                    changed_ |= ImGui::SliderFloat("Normal scale", &mesh->normalStrength, 0, 4, "%.2f");
+                    changed_ |= ImGui::ColorEdit3("Emission", &mesh->emission.x, ImGuiColorEditFlags_NoInputs);
+                    ImGui::SetNextItemWidth(-85);
+                    changed_ |= ImGui::SliderFloat("Emission gain", &mesh->emissionStrength, 0, 20, "%.2f");
+                    if (textureImport_.valid()) { ImGui::TextDisabled("Cooking texture..."); }
+                }
             }
             if (auto* light = scene_.get<Light>(selected_)) {
                 ImGui::SeparatorText("Light");
@@ -651,6 +705,9 @@ void Editor::diagnostics() {
         ImGui::Text("Shader cache: %llu hits, %llu misses, %.1f KB", static_cast<unsigned long long>(cache.hits),
             static_cast<unsigned long long>(cache.misses), static_cast<double>(cache.bytes) / 1024);
         const auto geometry = geometryCache_.stats();
+        const auto textures = textureCache_.stats();
+        ImGui::Text("GPU textures: %u, %.1f MB | Texture cache: %llu hits / %llu misses", statistics.textureCount,
+            static_cast<double>(statistics.textureBytes) / 1048576, static_cast<unsigned long long>(textures.hits), static_cast<unsigned long long>(textures.misses));
         ImGui::Text("Geometry cache: %llu hits, %llu misses | Physics: %zu bodies", static_cast<unsigned long long>(geometry.hits),
             static_cast<unsigned long long>(geometry.misses), physics_.bodyCount());
         ImGui::PlotLines("##Frame times", frameTimes_.data(), static_cast<int>(frameTimes_.size()),
@@ -762,17 +819,15 @@ std::filesystem::path Editor::chooseScenePath(bool save) {
 }
 
 bool Editor::saveScene(bool choosePath) {
-    if (playing_) { return false; }
+    if (playing_ || textureImport_.valid()) { return false; }
     try {
         auto destination = scenePath_;
         if (choosePath || destination.empty()) { destination = chooseScenePath(true); }
         if (destination.empty()) { return false; }
         if (!scenePath_.empty() && destination.parent_path() != scenePath_.parent_path()) {
-            for (const auto id : scene_.entities()) {
-                const auto* mesh = scene_.get<MeshRenderer>(id);
-                if (!mesh || !mesh->mesh.starts_with("Assets/")) { continue; }
-                const auto source = projectAssetPath(scenePath_.parent_path(), mesh->mesh);
-                const auto target = projectAssetPath(destination.parent_path(), mesh->mesh);
+            for (const auto& reference : scene_.assetReferences()) {
+                const auto source = projectAssetPath(scenePath_.parent_path(), reference);
+                const auto target = projectAssetPath(destination.parent_path(), reference);
                 const auto bytes = readBytes(source);
                 if (std::filesystem::exists(target) && sha256(readBytes(target)) != sha256(bytes)) {
                     throw std::runtime_error("Save As asset conflict; choose an empty destination project folder.");
@@ -792,16 +847,27 @@ bool Editor::saveScene(bool choosePath) {
 
 bool Editor::openScene(const std::filesystem::path& path) {
     try {
-        if (import_.valid()) { throw std::runtime_error("Wait for the current import before opening another project."); }
+        if (import_.valid() || textureImport_.valid()) { throw std::runtime_error("Wait for the current import before opening another project."); }
         Scene candidate;
         std::string error;
         if (!candidate.deserialize(readText(path), error)) { throw std::runtime_error(error); }
         for (const auto id : candidate.entities()) {
             const auto* mesh = candidate.get<MeshRenderer>(id);
-            if (!mesh || renderer_.hasMesh(mesh->mesh)) { continue; }
-            if (!mesh->mesh.starts_with("Assets/")) { throw std::runtime_error("Unknown mesh reference: " + mesh->mesh); }
-            const auto source = projectAssetPath(path.parent_path(), mesh->mesh);
-            renderer_.addMesh(mesh->mesh, loadGlb(source, geometryCache_));
+            if (!mesh) { continue; }
+            if (!renderer_.hasMesh(mesh->mesh)) {
+                if (!mesh->mesh.starts_with("Assets/")) { throw std::runtime_error("Unknown mesh reference: " + mesh->mesh); }
+                const auto source = projectAssetPath(path.parent_path(), mesh->mesh);
+                renderer_.addMesh(mesh->mesh, loadGlb(source, geometryCache_));
+            }
+            for (std::size_t slot = 0; slot < mesh->textures.size(); ++slot) {
+                const auto& reference = mesh->textures[slot];
+                if (reference.empty()) { continue; }
+                const auto type = static_cast<TextureSlot>(slot);
+                const auto key = textureKey(reference, type);
+                if (!renderer_.hasTexture(key)) {
+                    renderer_.addTexture(key, loadTexture(projectAssetPath(path.parent_path(), reference), {type}, textureCache_));
+                }
+            }
         }
         stopPlay();
         assistant_.clearConversation();
@@ -820,7 +886,7 @@ bool Editor::openScene(const std::filesystem::path& path) {
 void Editor::requestClose() { pendingAction_ = 3; showUnsaved_ = true; }
 
 void Editor::applyPendingAction() {
-    if (import_.valid()) { log("Wait for the current import before switching projects."); pendingAction_ = 0; return; }
+    if (import_.valid() || textureImport_.valid()) { log("Wait for the current import before switching projects."); pendingAction_ = 0; return; }
     stopPlay();
     history_.clear();
     if (pendingAction_ == 1) {
@@ -893,6 +959,35 @@ void Editor::importGlb(const std::filesystem::path& path) {
         }
         if (!std::filesystem::exists(target)) { writeAtomic(target, bytes); }
         return ImportedAsset{std::move(geometry), reference, utf8(path.stem().native()), project};
+    });
+}
+
+void Editor::chooseTexture(TextureSlot slot) {
+    if (textureImport_.valid() || import_.valid() || playing_ || !scene_.get<MeshRenderer>(selected_)) { return; }
+    if (scenePath_.empty() && !saveScene()) { return; }
+    ComPtr<IFileOpenDialog> dialog;
+    if (FAILED(CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&dialog)))) { log("Cannot open texture dialog.", true); return; }
+    const COMDLG_FILTERSPEC filter{L"Material texture", L"*.png;*.jpg;*.jpeg;*.dds;*.tga;*.bmp;*.tif;*.tiff"};
+    dialog->SetFileTypes(1, &filter);
+    dialog->SetOptions(FOS_FORCEFILESYSTEM | FOS_FILEMUSTEXIST | FOS_NOCHANGEDIR);
+    if (dialog->Show(window_) != S_OK) { return; }
+    ComPtr<IShellItem> item;
+    if (FAILED(dialog->GetResult(&item))) { return; }
+    PWSTR selected = nullptr;
+    if (FAILED(item->GetDisplayName(SIGDN_FILESYSPATH, &selected))) { return; }
+    const std::filesystem::path source(selected);
+    CoTaskMemFree(selected);
+    const auto project = scenePath_.parent_path();
+    const auto entity = selected_;
+    const auto revision = scene_.revision();
+    textureImport_ = std::async(std::launch::async, [this, source, project, entity, slot, revision] {
+        const auto bytes = readBytes(source);
+        const auto reference = "Assets/" + sha256(bytes) + utf8(source.extension().native());
+        auto texture = loadTexture(source, {slot}, textureCache_);
+        const auto destination = projectAssetPath(project, reference);
+        if (!std::filesystem::exists(destination)) { writeAtomic(destination, bytes); }
+        else if (sha256(readBytes(destination)) != sha256(bytes)) { throw std::runtime_error("Existing project texture conflicts with imported content."); }
+        return ImportedTexture{std::move(texture), reference, entity, slot, project, revision};
     });
 }
 

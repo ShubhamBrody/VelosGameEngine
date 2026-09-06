@@ -15,15 +15,11 @@ void packageScene(const std::filesystem::path& source, const std::filesystem::pa
     Scene scene;
     std::string error;
     if (!scene.deserialize(readText(source), error)) { throw std::runtime_error(error); }
-    std::set<std::string> assets;
-    for (const auto id : scene.entities()) {
-        if (const auto* mesh = scene.get<MeshRenderer>(id)) {
-            if (mesh->mesh == "cube" || mesh->mesh == "sphere" || mesh->mesh == "plane" || mesh->mesh == "quad") { continue; }
-            if (!mesh->mesh.starts_with("Assets/")) { throw std::runtime_error("Unknown project mesh reference."); }
-            const auto asset = projectAssetPath(source.parent_path(), mesh->mesh);
-            if (!std::filesystem::is_regular_file(asset)) { throw std::runtime_error("Cannot package a missing asset."); }
-            assets.insert(mesh->mesh);
-        }
+    const auto assets = scene.assetReferences();
+    for (const auto& reference : assets) {
+        if (!reference.starts_with("Assets/")) { throw std::runtime_error("Unknown project asset reference."); }
+        const auto asset = projectAssetPath(source.parent_path(), reference);
+        if (!std::filesystem::is_regular_file(asset)) { throw std::runtime_error("Cannot package a missing asset: " + reference); }
     }
     for (const auto* name : {L"VelosRuntime.exe", L"dxcompiler.dll", L"dxil.dll"}) {
         if (!std::filesystem::is_regular_file(binaries / name)) { throw std::runtime_error("Build the standalone runtime before exporting."); }

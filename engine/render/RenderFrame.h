@@ -1,6 +1,7 @@
 #pragma once
 
 #include "render/Camera.h"
+#include "assets/Material.h"
 
 #include <DirectXMath.h>
 #include <array>
@@ -10,15 +11,11 @@
 
 namespace velos {
 
-struct DrawItem {
+struct DrawItem : Material {
     std::string mesh;
     DirectX::XMFLOAT4X4 world{};
-    DirectX::XMFLOAT4 color{1, 1, 1, 1};
-    float roughness = 0.5f;
-    float metallic = 0;
     bool selected = false;
     bool castShadow = true;
-    bool unlit = false;
     bool grid = false;
 };
 
@@ -46,6 +43,8 @@ struct RendererStats {
     std::uint64_t gpuUsage = 0;
     std::uint64_t gpuBudget = 0;
     std::uint64_t meshBytes = 0;
+    std::uint64_t textureBytes = 0;
+    std::uint32_t textureCount = 0;
     std::uint32_t drawCalls = 0;
     std::uint32_t triangles = 0;
     std::uint32_t visibleObjects = 0;

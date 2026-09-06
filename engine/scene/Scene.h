@@ -1,5 +1,6 @@
 #pragma once
 
+#include "assets/Material.h"
 #include <DirectXMath.h>
 #include <entt/entt.hpp>
 #include <nlohmann/json.hpp>
@@ -28,13 +29,9 @@ struct Transform {
     [[nodiscard]] DirectX::XMMATRIX matrix() const;
 };
 
-struct MeshRenderer {
+struct MeshRenderer : Material {
     std::string mesh = "cube";
-    DirectX::XMFLOAT4 color{0.24f, 0.73f, 0.64f, 1.0f};
-    float roughness = 0.45f;
-    float metallic = 0.0f;
     bool castShadow = true;
-    bool unlit = false;
 };
 
 enum class LightKind { Directional, Point };
@@ -110,6 +107,7 @@ public:
 
     [[nodiscard]] nlohmann::json toJson() const;
     [[nodiscard]] std::string serialize() const;
+    [[nodiscard]] std::vector<std::string> assetReferences() const;
     bool deserialize(std::string_view text, std::string& error);
     [[nodiscard]] static Scene demo();
 
