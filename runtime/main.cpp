@@ -20,6 +20,8 @@ int main(int argc, char** argv) {
     std::uint32_t stressCount = 0;
     bool instancing = true;
     bool lods = true;
+    bool rayShadows = false;
+    std::uint64_t rayBudgetMb = 256;
     std::string adapter = "auto";
     int frameLimit = 0;
     bool debug = false;
@@ -39,6 +41,8 @@ int main(int argc, char** argv) {
         else if (argument == "--no-debug-gpu") { debug = false; }
         else if (argument == "--no-instancing") { instancing = false; }
         else if (argument == "--no-lods") { lods = false; }
+        else if (argument == "--ray-shadows") { rayShadows = true; }
+        else if (argument.starts_with("--ray-budget-mb=")) { rayBudgetMb = std::stoull(argument.substr(16)); }
         else if (argument.starts_with("--stress=")) { stressCount = static_cast<std::uint32_t>(std::stoul(argument.substr(9))); }
         else if (argument.starts_with("--report=")) { report = velos::wide(argument.substr(9)); }
     }
@@ -63,9 +67,12 @@ int main(int argc, char** argv) {
             throw std::runtime_error("The requested scene does not exist.");
         }
         if (stressCount != 0) { scene = velos::Scene::stress(stressCount); }
+        if (rayShadows) { scene.rayTracedShadows = true; scene.touch(); }
         velos::Window window(velos::wide(scene.name) + L" | Velos", 1280, 800);
         if (frameLimit == 0) { FreeConsole(); }
         velos::Renderer renderer(window.handle(), adapter, debug);
+        if (rayBudgetMb > 256) { throw std::invalid_argument("DXR memory budget must be between 0 and 256 MB."); }
+        if (rayBudgetMb != 256) { renderer.setRayTracingBudget(rayBudgetMb * 1024 * 1024); }
         velos::DiskCache cache(velos::localDataDirectory() / L"cache" / L"geometry", 512 * 1024 * 1024);
         velos::DiskCache textureCache(velos::localDataDirectory() / L"cache" / L"textures", 512 * 1024 * 1024);
         for (const auto id : scene.entities()) {
@@ -141,6 +148,7 @@ int main(int argc, char** argv) {
         if (!report.empty()) { velos::writeTextAtomic(report, metrics.report(statistics, instancing, lods).dump(2)); }
         std::cout << "Camera draws: " << statistics.cameraDraws << " | Shadow draws: " << statistics.shadowDraws
             << " | LOD triangles saved: " << statistics.lodTrianglesSaved << '\n';
+        std::cout << "Shadows: " << statistics.shadowStatus << " | DXR memory: " << statistics.rayTracingBytes << " bytes\n";
         std::cout << "Runtime adapter: " << statistics.adapter << "\nFrames: " << frameIndex
             << "\nGPU scene: " << statistics.gpuMilliseconds << " ms\nD3D12 validation: "
             << (!statistics.debugLayer ? "not available" : errors.empty() ? "PASS" : "FAIL") << '\n';

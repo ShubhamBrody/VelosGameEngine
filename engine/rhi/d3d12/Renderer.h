@@ -26,6 +26,7 @@ public:
     void resizeWindow(std::uint32_t width, std::uint32_t height);
     void resizeScene(std::uint32_t width, std::uint32_t height);
     void setShadowResolution(std::uint32_t size);
+    void setRayTracingBudget(std::uint64_t bytes);
     [[nodiscard]] std::uint64_t sceneTexture() const;
     void addMesh(const std::string& key, const MeshData& mesh);
     void addTexture(const std::string& key, const TextureData& texture);

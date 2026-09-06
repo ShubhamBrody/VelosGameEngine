@@ -1,4 +1,5 @@
 #include "rhi/d3d12/Renderer.h"
+#include "rhi/d3d12/RayTracing.h"
 #include "platform/Files.h"
 #include "render/DrawBatches.h"
 
@@ -30,7 +31,7 @@ constexpr UINT frameCount = 2;
 constexpr UINT descriptorCount = 4096;
 constexpr UINT maxObjects = 10000;
 constexpr UINT objectStride = 256;
-constexpr UINT frameDataSize = 1024;
+constexpr UINT frameDataSize = 2048;
 constexpr UINT uploadSize = frameDataSize + maxObjects * 2 * objectStride;
 
 void check(HRESULT result, const char* operation) {
@@ -78,7 +79,7 @@ struct FrameConstants {
     XMFLOAT4 sunDirectionAmbient;
     XMFLOAT4 sunColorIntensity;
     XMFLOAT4 settings;
-    std::array<RenderLight, 8> lights;
+    std::array<RenderLight, 16> lights;
 };
 static_assert(sizeof(FrameConstants) <= frameDataSize);
 
@@ -181,6 +182,9 @@ struct Renderer::Impl {
     ComPtr<ID3D12PipelineState> shadowPipeline;
     ComPtr<ID3D12PipelineState> backgroundPipeline;
     std::array<ComPtr<ID3D12PipelineState>, 4> surfacePipelines;
+    std::array<ComPtr<ID3D12PipelineState>, 4> raySurfacePipelines;
+    std::unique_ptr<RayTracingScene> rayScene;
+    bool rayBudgetExceeded = false;
     HMODULE dxcModule = nullptr;
     std::string compilerDigest;
     DiskCache shaderCache;
@@ -277,6 +281,8 @@ struct Renderer::Impl {
             throw std::runtime_error("This preview requires Shader Model 6.0. Update the GPU driver or choose another adapter.");
         }
         if (statistics.debugLayer) { static_cast<void>(device.As(&infoQueue)); }
+        rayScene = std::make_unique<RayTracingScene>(device.Get());
+        statistics.rayTracingSupported = rayScene->supported() && (description.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) == 0;
         D3D12_COMMAND_QUEUE_DESC queueDescription{};
         queueDescription.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
         check(device->CreateCommandQueue(&queueDescription, IID_PPV_ARGS(&queue)), "Create graphics queue");
@@ -483,7 +489,7 @@ struct Renderer::Impl {
         maps.NumDescriptors = 4;
         maps.BaseShaderRegister = 1;
         maps.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
-        std::array<D3D12_ROOT_PARAMETER, 5> parameters{};
+        std::array<D3D12_ROOT_PARAMETER, 6> parameters{};
         parameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
         parameters[0].Descriptor.ShaderRegister = 0;
         parameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
@@ -502,6 +508,9 @@ struct Renderer::Impl {
         parameters[4].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
         parameters[4].Descriptor.ShaderRegister = 5;
         parameters[4].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+        parameters[5].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
+        parameters[5].Descriptor.ShaderRegister = 6;
+        parameters[5].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
         D3D12_STATIC_SAMPLER_DESC sampler{};
         sampler.Filter = D3D12_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT;
         sampler.AddressU = sampler.AddressV = sampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
@@ -559,6 +568,7 @@ struct Renderer::Impl {
         const auto source = readText(executableDirectory() / L"shaders" / L"scene.hlsl");
         const auto vertex = compile(source, L"VSMain", L"vs_6_0");
         const auto pixel = compile(source, L"PSMain", L"ps_6_0");
+        const auto rayPixel = statistics.rayTracingSupported ? compile("#define VELOS_RAY_SHADOWS 1\n" + source, L"PSMain", L"ps_6_5") : std::vector<std::byte>{};
         const auto shadowVertex = compile(source, L"VSShadow", L"vs_6_0");
         const auto shadowPixel = compile(source, L"PSShadow", L"ps_6_0");
         const auto backgroundVertex = compile(source, L"VSBackground", L"vs_6_0");
@@ -602,6 +612,7 @@ struct Renderer::Impl {
         ComPtr<ID3D12PipelineState> nextShadow;
         ComPtr<ID3D12PipelineState> nextBackground;
         std::array<ComPtr<ID3D12PipelineState>, 4> nextSurfaces;
+        std::array<ComPtr<ID3D12PipelineState>, 4> nextRaySurfaces;
         check(device->CreateGraphicsPipelineState(&description, IID_PPV_ARGS(&nextLit)), "Create scene pipeline");
         for (UINT mode = 0; mode < 4; ++mode) {
             description.RasterizerState.CullMode = mode % 2 == 0 ? D3D12_CULL_MODE_BACK : D3D12_CULL_MODE_NONE;
@@ -610,6 +621,11 @@ struct Renderer::Impl {
             description.BlendState.RenderTarget[0].DestBlend = mode >= 2 ? D3D12_BLEND_INV_SRC_ALPHA : D3D12_BLEND_ZERO;
             description.DepthStencilState.DepthWriteMask = mode >= 2 ? D3D12_DEPTH_WRITE_MASK_ZERO : D3D12_DEPTH_WRITE_MASK_ALL;
             check(device->CreateGraphicsPipelineState(&description, IID_PPV_ARGS(&nextSurfaces[mode])), "Create material surface pipeline");
+            if (!rayPixel.empty()) {
+                description.PS = {rayPixel.data(), rayPixel.size()};
+                check(device->CreateGraphicsPipelineState(&description, IID_PPV_ARGS(&nextRaySurfaces[mode])), "Create ray-shadow material pipeline");
+                description.PS = {pixel.data(), pixel.size()};
+            }
         }
         description.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
         description.BlendState.RenderTarget[0].BlendEnable = FALSE;
@@ -642,6 +658,7 @@ struct Renderer::Impl {
         shadowPipeline = std::move(nextShadow);
         backgroundPipeline = std::move(nextBackground);
         surfacePipelines = std::move(nextSurfaces);
+        raySurfacePipelines = std::move(nextRaySurfaces);
     }
 
     void draw(const RenderFrame& frame, ImDrawData* ui, bool vsync) {
@@ -681,9 +698,14 @@ struct Renderer::Impl {
         constants.eyeExposure.w = frame.exposure;
         constants.sunDirectionAmbient = {frame.sunDirection.x, frame.sunDirection.y, frame.sunDirection.z, frame.ambient};
         constants.sunColorIntensity = frame.sunColor;
-        constants.settings = {frame.shadows ? 1.0f : 0.0f, static_cast<float>(std::min<UINT>(frame.lightCount, 8)), 1.0f / static_cast<float>(shadowSize), 0};
+        constants.settings = {frame.shadows ? 1.0f : 0.0f, static_cast<float>(std::min<UINT>(frame.lightCount, 16)), 1.0f / static_cast<float>(shadowSize), 0};
         constants.lights = frame.lights;
-        std::memcpy(slot.mapped, &constants, sizeof(constants));
+        const bool maskedCasters = std::any_of(frame.objects.begin(), frame.objects.end(), [](const auto& object) {
+            return object.castShadow && !object.unlit && object.surface == SurfaceMode::Masked;
+        });
+        const bool requestRays = frame.shadows && frame.rayTracedShadows && statistics.rayTracingSupported && !maskedCasters && !frame.wireframe && !rayBudgetExceeded;
+        std::vector<RayGeometryInstance> rayInstances;
+        if (requestRays) { rayInstances.reserve(frame.objects.size()); }
         BoundingFrustum localFrustum;
         BoundingFrustum worldFrustum;
         if (!frame.camera.orthographic) {
@@ -706,13 +728,21 @@ struct Renderer::Impl {
             const auto& mesh = found->second;
             BoundingBox bounds;
             mesh.bounds.Transform(bounds, XMLoadFloat4x4(&object.world));
-            if (!frame.camera.orthographic && worldFrustum.Contains(bounds) == DISJOINT) { continue; }
+            const bool cameraVisible = frame.camera.orthographic || worldFrustum.Contains(bounds) != DISJOINT;
             const auto center = XMVector3TransformCoord(XMLoadFloat3(&bounds.Center), frame.camera.view());
             const float depth = std::max(0.001f, -XMVectorGetZ(center));
             const float radius = XMVectorGetX(XMVector3Length(XMLoadFloat3(&bounds.Extents)));
             const float diameter = frame.camera.orthographic ? radius * 2 * static_cast<float>(sceneHeight) / frame.camera.distance
                 : radius * XMVectorGetY(frame.camera.projection().r[1]) * static_cast<float>(sceneHeight) / depth;
             const auto lod = frame.lods ? selectMeshLod(diameter, static_cast<UINT>(mesh.levels.size()), frame.lodBias) : 0;
+            if (requestRays && object.castShadow && !object.unlit && object.surface != SurfaceMode::Transparent) {
+                const auto rayLod = cameraVisible ? lod : 0;
+                const auto& level = mesh.levels[rayLod];
+                rayInstances.push_back({found->first + "|lod=" + std::to_string(rayLod), mesh.vertices.Get(), mesh.indices.Get(),
+                    mesh.vertexView.SizeInBytes / sizeof(Vertex), level.count, sizeof(Vertex),
+                    level.view.BufferLocation - mesh.indices->GetGPUVirtualAddress(), object.world});
+            }
+            if (!cameraVisible) { continue; }
             visibleInstances.push_back({static_cast<UINT>(index), lod, depth});
             statistics.lodTrianglesSaved += (mesh.indexCount - mesh.levels[lod].count) / 3;
         }
@@ -739,14 +769,28 @@ struct Renderer::Impl {
         statistics.visibleObjects = static_cast<UINT>(cameraPlan.instances.size());
         check(slot.allocator->Reset(), "Reset frame allocator");
         check(commands->Reset(slot.allocator.Get(), nullptr), "Reset frame commands");
+        commands->EndQuery(queries.Get(), D3D12_QUERY_TYPE_TIMESTAMP, slotIndex * 2);
+        D3D12_GPU_VIRTUAL_ADDRESS rayAddress = 0;
+        if (requestRays) {
+            try { rayAddress = rayScene->record(commands.Get(), slotIndex, frame.sourceRevision, rayInstances); }
+            catch (const RayTracingBudgetError&) { rayBudgetExceeded = true; }
+        }
+        statistics.rayTracedShadows = rayAddress != 0;
+        statistics.rayTracingBytes = rayScene->bytes();
+        statistics.shadowStatus = !frame.shadows ? "Off" : statistics.rayTracedShadows ? "DXR directional"
+            : !frame.rayTracedShadows ? "Raster" : !statistics.rayTracingSupported ? "Raster (DXR unsupported)"
+            : maskedCasters ? "Raster (masked casters)" : frame.wireframe ? "Raster (wireframe)"
+            : rayBudgetExceeded ? "Raster (DXR memory budget)" : "Raster (no ray casters)";
+        constants.settings.w = statistics.rayTracedShadows ? 1.0f : 0.0f;
+        std::memcpy(slot.mapped, &constants, sizeof(constants));
         ID3D12DescriptorHeap* heaps[] = {srvHeap.Get()};
         commands->SetDescriptorHeaps(1, heaps);
         commands->SetGraphicsRootSignature(rootSignature.Get());
         commands->SetGraphicsRootConstantBufferView(0, slot.upload->GetGPUVirtualAddress());
         commands->SetGraphicsRootDescriptorTable(2, srvGpu(1));
         commands->SetGraphicsRootShaderResourceView(4, slot.upload->GetGPUVirtualAddress() + frameDataSize);
+        if (rayAddress != 0) { commands->SetGraphicsRootShaderResourceView(5, rayAddress); }
         commands->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-        commands->EndQuery(queries.Get(), D3D12_QUERY_TYPE_TIMESTAMP, slotIndex * 2);
         statistics.drawCalls = statistics.triangles = 0;
         const auto drawBatch = [&](const DrawBatches& plan, const DrawBatch& batch, UINT instanceOffset) {
             const auto& instance = plan.instances[batch.first];
@@ -764,7 +808,7 @@ struct Renderer::Impl {
             ++statistics.drawCalls;
             statistics.triangles += level.count / 3 * batch.count;
         };
-        if (frame.shadows) {
+        if (frame.shadows && !statistics.rayTracedShadows) {
             auto barrier = transition(shadow.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_DEPTH_WRITE);
             commands->ResourceBarrier(1, &barrier);
             const D3D12_VIEWPORT viewport{0,0,static_cast<float>(shadowSize),static_cast<float>(shadowSize),0,1};
@@ -800,7 +844,8 @@ struct Renderer::Impl {
         for (const auto& batch : cameraPlan.batches) {
             const auto& object = frame.objects[cameraPlan.instances[batch.first].object];
             const auto pipeline = (object.surface == SurfaceMode::Transparent ? 2u : 0u) + (object.doubleSided ? 1u : 0u);
-            commands->SetPipelineState(frame.wireframe ? wirePipeline.Get() : surfacePipelines[pipeline].Get());
+            const auto& surfaces = statistics.rayTracedShadows ? raySurfacePipelines : surfacePipelines;
+            commands->SetPipelineState(frame.wireframe ? wirePipeline.Get() : surfaces[pipeline].Get());
             drawBatch(cameraPlan, batch, shadowCount);
             ++statistics.cameraDraws;
         }
@@ -933,6 +978,16 @@ void Renderer::setShadowResolution(std::uint32_t size) {
 
 std::uint64_t Renderer::sceneTexture() const { return impl_->srvGpu(0).ptr; }
 
+void Renderer::setRayTracingBudget(std::uint64_t bytes) {
+    if (bytes > 256 * 1024 * 1024) { throw std::invalid_argument("DXR memory budget must not exceed 256 MB."); }
+    impl_->idle();
+    impl_->rayScene = std::make_unique<RayTracingScene>(impl_->device.Get(), bytes);
+    impl_->rayBudgetExceeded = false;
+    impl_->statistics.rayTracingBytes = 0;
+    impl_->statistics.rayTracingBudget = bytes;
+    impl_->statistics.rayTracedShadows = false;
+}
+
 void Renderer::addMesh(const std::string& key, const MeshData& source) {
     if (impl_->meshes.contains(key)) { return; }
     auto optimized = source;
@@ -964,8 +1019,8 @@ void Renderer::addMesh(const std::string& key, const MeshData& source) {
         commands->CopyBufferRegion(mesh.vertices.Get(), 0, staging.Get(), 0, vertexBytes);
         commands->CopyBufferRegion(mesh.indices.Get(), 0, staging.Get(), vertexBytes, indexBytes);
         const std::array barriers{
-            transition(mesh.vertices.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER),
-            transition(mesh.indices.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_INDEX_BUFFER)
+            transition(mesh.vertices.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE),
+            transition(mesh.indices.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_INDEX_BUFFER | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE)
         };
         commands->ResourceBarrier(static_cast<UINT>(barriers.size()), barriers.data());
     });

@@ -35,13 +35,15 @@ struct MeshRenderer : Material {
     bool castShadow = true;
 };
 
-enum class LightKind { Directional, Point };
+enum class LightKind { Directional, Point, Spot };
 struct Light {
     LightKind kind = LightKind::Point;
     DirectX::XMFLOAT3 color{1, 0.96f, 0.88f};
     DirectX::XMFLOAT3 direction{-0.5f, -1, -0.3f};
     float intensity = 3.0f;
     float range = 12.0f;
+    float innerAngle = 25;
+    float outerAngle = 45;
 };
 
 enum class BodyMotion { Static, Dynamic };
@@ -70,6 +72,7 @@ public:
     std::string name = "Untitled";
     float ambient = 0.32f;
     bool shadows = true;
+    bool rayTracedShadows = false;
     bool twoDimensional = false;
 
     EntityId create(std::string name);

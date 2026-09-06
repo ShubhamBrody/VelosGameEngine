@@ -221,10 +221,10 @@ Json Scene::entityJson(EntityId id) const {
         material["doubleSided"] = mesh->doubleSided;
     }
     if (const auto* light = get<Light>(id)) {
-        result["light"] = {{"kind", light->kind == LightKind::Directional ? "directional" : "point"},
+        result["light"] = {{"kind", light->kind == LightKind::Directional ? "directional" : light->kind == LightKind::Point ? "point" : "spot"},
             {"color", {light->color.x, light->color.y, light->color.z}},
             {"direction", {light->direction.x, light->direction.y, light->direction.z}},
-            {"intensity", light->intensity}, {"range", light->range}};
+            {"intensity", light->intensity}, {"range", light->range}, {"innerAngle", light->innerAngle}, {"outerAngle", light->outerAngle}};
     }
     if (const auto* body = get<RigidBody>(id)) {
         result["body"] = {{"motion", body->motion == BodyMotion::Static ? "static" : "dynamic"},
@@ -237,7 +237,7 @@ Json Scene::entityJson(EntityId id) const {
 
 Json Scene::toJson() const {
     Json result{{"schema", 1}, {"name", name}, {"ambient", ambient}, {"shadows", shadows},
-        {"mode", twoDimensional ? "2d" : "3d"}, {"entities", Json::array()}};
+        {"rayTracedShadows", rayTracedShadows}, {"mode", twoDimensional ? "2d" : "3d"}, {"entities", Json::array()}};
     for (const auto id : order_) { result["entities"].push_back(entityJson(id)); }
     return result;
 }
@@ -273,6 +273,7 @@ bool Scene::deserialize(std::string_view text, std::string& error) {
         if (candidate.name.empty() || candidate.name.size() > 128) { throw std::runtime_error("Invalid scene name."); }
         candidate.ambient = bounded(root, "ambient", 0.32f, 0.0f, 4.0f);
         candidate.shadows = root.value("shadows", true);
+        candidate.rayTracedShadows = root.value("rayTracedShadows", false);
         const auto mode = root.value("mode", std::string("3d"));
         if (mode != "3d" && mode != "2d") { throw std::runtime_error("Unknown scene view mode."); }
         candidate.twoDimensional = mode == "2d";
@@ -355,8 +356,8 @@ bool Scene::deserialize(std::string_view text, std::string& error) {
                 const auto& source = entity.at("light");
                 Light light;
                 const auto kind = source.at("kind").get<std::string>();
-                if (kind != "directional" && kind != "point") { throw std::runtime_error("Unknown light type."); }
-                light.kind = kind == "directional" ? LightKind::Directional : LightKind::Point;
+                if (kind != "directional" && kind != "point" && kind != "spot") { throw std::runtime_error("Unknown light type."); }
+                light.kind = kind == "directional" ? LightKind::Directional : kind == "point" ? LightKind::Point : LightKind::Spot;
                 const auto color = values<3>(source.at("color"));
                 const auto direction = values<3>(source.at("direction"));
                 light.color = {color[0], color[1], color[2]};
@@ -364,6 +365,9 @@ bool Scene::deserialize(std::string_view text, std::string& error) {
                 if (XMVectorGetX(XMVector3LengthSq(XMLoadFloat3(&light.direction))) < 1e-8f) { throw std::runtime_error("Light direction cannot be zero."); }
                 light.intensity = bounded(source, "intensity", 3, 0, 1000);
                 light.range = bounded(source, "range", 12, 0.1f, 10000);
+                light.innerAngle = bounded(source, "innerAngle", 25, 0.1f, 175);
+                light.outerAngle = bounded(source, "outerAngle", 45, 0.2f, 179);
+                if (light.innerAngle >= light.outerAngle) { throw std::runtime_error("Spotlight inner angle must be less than its outer angle."); }
                 candidate.set<Light>(id, light);
             }
             if (entity.contains("body")) {

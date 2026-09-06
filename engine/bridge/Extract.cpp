@@ -3,6 +3,7 @@
 namespace velos {
 
 void extractScene(const Scene& scene, RenderFrame& frame, EntityId selected, bool grid) {
+    frame.shadows = scene.shadows && !frame.camera.orthographic;
     if (frame.sourceRevision == scene.revision() && frame.selectedSource == selected && frame.sourceGrid == grid) { return; }
     frame.sourceRevision = scene.revision();
     frame.selectedSource = selected;
@@ -10,7 +11,7 @@ void extractScene(const Scene& scene, RenderFrame& frame, EntityId selected, boo
     frame.objects.clear();
     frame.lightCount = 0;
     frame.ambient = scene.ambient;
-    frame.shadows = scene.shadows && !frame.camera.orthographic;
+    frame.rayTracedShadows = scene.rayTracedShadows;
     frame.sunDirection = {-0.5f, -1, -0.3f};
     frame.sunColor = {1, 0.96f, 0.88f, 0};
     bool foundSun = false;
@@ -33,14 +34,17 @@ void extractScene(const Scene& scene, RenderFrame& frame, EntityId selected, boo
         }
         if (const auto* light = scene.get<Light>(id)) {
             if (light->kind == LightKind::Directional && !foundSun) {
-                frame.sunDirection = light->direction;
+                DirectX::XMStoreFloat3(&frame.sunDirection, DirectX::XMVector3Normalize(DirectX::XMVector3TransformNormal(DirectX::XMLoadFloat3(&light->direction), world)));
                 frame.sunColor = {light->color.x, light->color.y, light->color.z, light->intensity};
                 foundSun = true;
-            } else if (light->kind == LightKind::Point && frame.lightCount < frame.lights.size()) {
+            } else if (light->kind != LightKind::Directional && frame.lightCount < frame.lights.size()) {
                 auto& output = frame.lights[frame.lightCount++];
                 DirectX::XMStoreFloat4(&output.positionRange, world.r[3]);
                 output.positionRange.w = light->range;
                 output.colorIntensity = {light->color.x, light->color.y, light->color.z, light->intensity};
+                DirectX::XMStoreFloat4(&output.directionOuter, DirectX::XMVector3Normalize(DirectX::XMVector3TransformNormal(DirectX::XMLoadFloat3(&light->direction), world)));
+                output.directionOuter.w = std::cos(DirectX::XMConvertToRadians(light->outerAngle * 0.5f));
+                output.cone = {std::cos(DirectX::XMConvertToRadians(light->innerAngle * 0.5f)), light->kind == LightKind::Spot ? 1.0f : 0.0f, 0, 0};
             }
         }
     }

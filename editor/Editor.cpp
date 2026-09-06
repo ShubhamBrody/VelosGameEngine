@@ -331,6 +331,16 @@ void Editor::toolbar() {
             scene_.get<Transform>(selected_)->position = {0,3,0};
             changed_ = true;
         }
+        if (ImGui::MenuItem("Spotlight")) {
+            selected_ = scene_.create("Spotlight");
+            Light light;
+            light.kind = LightKind::Spot;
+            light.direction = {0,-1,0};
+            light.intensity = 30;
+            scene_.set<Light>(selected_, light);
+            scene_.get<Transform>(selected_)->position = {0,4,0};
+            changed_ = true;
+        }
         if (ImGui::MenuItem("Empty entity")) { selected_ = scene_.create("Entity"); changed_ = true; }
         ImGui::EndDisabled();
         ImGui::EndPopup();
@@ -522,16 +532,26 @@ void Editor::inspector() {
             }
             if (auto* light = scene_.get<Light>(selected_)) {
                 ImGui::SeparatorText("Light");
+                int kind = static_cast<int>(light->kind);
+                ImGui::SetNextItemWidth(-90);
+                if (ImGui::Combo("Type", &kind, "Directional\0Point\0Spot\0")) { light->kind = static_cast<LightKind>(kind); changed_ = true; }
                 changed_ |= ImGui::ColorEdit3("Color", &light->color.x, ImGuiColorEditFlags_NoInputs);
                 ImGui::SetNextItemWidth(-90);
                 changed_ |= ImGui::DragFloat("Intensity", &light->intensity, 0.05f, 0, 1000, "%.2f", ImGuiSliderFlags_AlwaysClamp);
-                if (light->kind == LightKind::Directional) {
+                if (light->kind != LightKind::Point) {
                     auto direction = light->direction;
                     if (vectorControl("Direction", &direction.x, 0.01f, -1, 1, "%.3g")) {
                         if (XMVectorGetX(XMVector3LengthSq(XMLoadFloat3(&direction))) > 1e-5f) { light->direction = direction; changed_ = true; }
                     }
-                } else {
+                }
+                if (light->kind != LightKind::Directional) {
                     changed_ |= ImGui::DragFloat("Range", &light->range, 0.1f, 0.1f, 10000, "%.1f", ImGuiSliderFlags_AlwaysClamp);
+                }
+                if (light->kind == LightKind::Spot) {
+                    ImGui::SetNextItemWidth(-90);
+                    changed_ |= ImGui::SliderFloat("Inner cone", &light->innerAngle, 0.1f, light->outerAngle - 0.1f, "%.1f");
+                    ImGui::SetNextItemWidth(-90);
+                    changed_ |= ImGui::SliderFloat("Outer cone", &light->outerAngle, light->innerAngle + 0.1f, 179, "%.1f");
                 }
             }
             if (auto* spin = scene_.get<Spin>(selected_)) {
@@ -728,6 +748,16 @@ void Editor::diagnostics() {
         ImGui::Checkbox("Wireframe", &frame_.wireframe);
         ImGui::SameLine();
         changed_ |= ImGui::Checkbox("Shadows", &scene_.shadows);
+        ImGui::BeginDisabled(!statistics.rayTracingSupported);
+        changed_ |= ImGui::Checkbox("Ray-traced sun shadows", &scene_.rayTracedShadows);
+        ImGui::EndDisabled();
+        ImGui::Text("Shadow path: %s", statistics.shadowStatus.c_str());
+        ImGui::Text("DXR: %.1f MB", static_cast<double>(statistics.rayTracingBytes) / (1024 * 1024));
+        int rayBudget = static_cast<int>(statistics.rayTracingBudget / (1024 * 1024));
+        ImGui::SetNextItemWidth(-90);
+        if (ImGui::InputInt("DXR budget MB", &rayBudget, 16, 64, ImGuiInputTextFlags_EnterReturnsTrue)) {
+            renderer_.setRayTracingBudget(static_cast<std::uint64_t>(std::clamp(rayBudget, 0, 256)) * 1024 * 1024);
+        }
         ImGui::SetNextItemWidth(180);
         ImGui::SliderFloat("Resolution scale", &resolutionScale_, 0.5f, 1.0f, "%.2f");
         ImGui::SetNextItemWidth(180);

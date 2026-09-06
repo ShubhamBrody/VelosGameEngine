@@ -22,6 +22,8 @@ struct DrawItem : Material {
 struct RenderLight {
     DirectX::XMFLOAT4 positionRange{0, 0, 0, 10};
     DirectX::XMFLOAT4 colorIntensity{1, 1, 1, 1};
+    DirectX::XMFLOAT4 directionOuter{0, -1, 0, -1};
+    DirectX::XMFLOAT4 cone{1, 0, 0, 0};
 };
 
 struct RenderFrame {
@@ -30,13 +32,14 @@ struct RenderFrame {
     bool sourceGrid = false;
     Camera camera;
     std::vector<DrawItem> objects;
-    std::array<RenderLight, 8> lights{};
+    std::array<RenderLight, 16> lights{};
     std::uint32_t lightCount = 0;
     DirectX::XMFLOAT3 sunDirection{-0.5f, -1, -0.3f};
     DirectX::XMFLOAT4 sunColor{1, 0.96f, 0.88f, 3};
     float ambient = 0.32f;
     float exposure = 1.0f;
     bool shadows = true;
+    bool rayTracedShadows = false;
     bool wireframe = false;
     bool instancing = true;
     bool lods = true;
@@ -60,6 +63,11 @@ struct RendererStats {
     std::uint32_t lodTrianglesSaved = 0;
     std::uint32_t uploadedInstances = 0;
     std::uint32_t shadowResolution = 1024;
+    std::uint64_t rayTracingBytes = 0;
+    std::uint64_t rayTracingBudget = 256 * 1024 * 1024;
+    std::string shadowStatus = "Raster";
+    bool rayTracingSupported = false;
+    bool rayTracedShadows = false;
     bool debugLayer = false;
 };
 

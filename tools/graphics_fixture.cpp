@@ -53,6 +53,8 @@ int main(int argc, char** argv) {
         auto& mask = *scene.get<velos::MeshRenderer>(masked);
         mask.textures[0] = cube.textures[0];
         mask.surface = velos::SurfaceMode::Masked;
+        mask.unlit = false;
+        mask.castShadow = true;
         scene.get<velos::Transform>(masked)->position = {-3.5f,1.3f,-2};
         scene.get<velos::Transform>(masked)->scale = {2,2,2};
         const auto glass = scene.addPrimitive("quad", "Transparent panel");
@@ -62,6 +64,27 @@ int main(int argc, char** argv) {
         scene.get<velos::Transform>(glass)->position = {2.8f,1.4f,1.5f};
         scene.get<velos::Transform>(glass)->scale = {2,2,2};
         velos::writeTextAtomic(directory / "scene.velos", scene.serialize());
+        auto lighting = velos::Scene::demo();
+        lighting.name = "Directional Ray Shadows";
+        lighting.rayTracedShadows = true;
+        velos::writeTextAtomic(directory / "ray-shadows.velos", lighting.serialize());
+        for (const auto entity : lighting.entities()) { lighting.remove<velos::Light>(entity); }
+        lighting.name = "Spotlight Laboratory";
+        lighting.ambient = 0.05f;
+        lighting.shadows = false;
+        const auto spotlight = lighting.create("Overhead spotlight");
+        velos::Light spot;
+        spot.kind = velos::LightKind::Spot;
+        spot.direction = {0,-1,0};
+        spot.intensity = 100;
+        spot.range = 16;
+        spot.innerAngle = 35;
+        spot.outerAngle = 70;
+        lighting.set<velos::Light>(spotlight, spot);
+        lighting.get<velos::Transform>(spotlight)->position = {0,6,0};
+        velos::writeTextAtomic(directory / "spotlight.velos", lighting.serialize());
+        lighting.get<velos::Light>(spotlight)->kind = velos::LightKind::Point;
+        velos::writeTextAtomic(directory / "point-reference.velos", lighting.serialize());
         std::cout << "Generated material fixture: " << velos::utf8(directory.native()) << '\n';
     } catch (const std::exception& error) { std::cerr << error.what() << '\n'; result = 1; }
     if (SUCCEEDED(initialized)) { CoUninitialize(); }

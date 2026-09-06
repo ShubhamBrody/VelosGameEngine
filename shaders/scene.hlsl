@@ -1,6 +1,8 @@
 struct PointLight {
     float4 positionRange;
     float4 colorIntensity;
+    float4 directionOuter;
+    float4 cone;
 };
 
 cbuffer FrameData : register(b0) {
@@ -10,7 +12,7 @@ cbuffer FrameData : register(b0) {
     float4 sunDirectionAmbient;
     float4 sunColorIntensity;
     float4 settings;
-    PointLight pointLights[8];
+    PointLight pointLights[16];
 };
 
 struct InstanceData {
@@ -28,6 +30,9 @@ struct InstanceData {
 
 cbuffer DrawData : register(b1) { uint firstInstance; };
 StructuredBuffer<InstanceData> instances : register(t5);
+#ifdef VELOS_RAY_SHADOWS
+RaytracingAccelerationStructure shadowScene : register(t6);
+#endif
 
 Texture2D<float> shadowMap : register(t0);
 SamplerComparisonState shadowSampler : register(s0);
@@ -119,8 +124,25 @@ float3 evaluateLight(float3 normal, float3 viewDirection, float3 lightDirection,
     return (diffuse + specular) * radiance * normalLight;
 }
 
-float visibility(float3 position, float normalLight) {
+float visibility(float3 position, float normalLight, float3 geometricNormal) {
     if (settings.x < 0.5) { return 1; }
+#ifdef VELOS_RAY_SHADOWS
+    if (settings.w > 0.5) {
+        float3 direction = normalize(-sunDirectionAmbient.xyz);
+        float3 offsetNormal = normalize(geometricNormal);
+        offsetNormal *= dot(offsetNormal, direction) < 0 ? -1 : 1;
+        float offset = max(0.002, length(position) * 0.000002);
+        RayDesc ray;
+        ray.Origin = position + offsetNormal * offset;
+        ray.Direction = direction;
+        ray.TMin = 0.001;
+        ray.TMax = 10000;
+        RayQuery<RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH | RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES> query;
+        query.TraceRayInline(shadowScene, RAY_FLAG_NONE, 0xff, ray);
+        while (query.Proceed()) {}
+        return query.CommittedStatus() == COMMITTED_TRIANGLE_HIT ? 0 : 1;
+    }
+#endif
     float4 lightPosition = mul(float4(position, 1), lightViewProjection);
     float3 projected = lightPosition.xyz / lightPosition.w;
     float2 uv = projected.xy * float2(0.5, -0.5) + 0.5;
@@ -169,12 +191,16 @@ float4 PSMain(VertexOutput input) : SV_TARGET {
     float3 ambientColor = lerp(float3(0.14, 0.16, 0.18), float3(0.65, 0.74, 0.8), hemisphere);
     float3 color = albedo * ambientColor * sunDirectionAmbient.w * orm.r + emission;
     color += evaluateLight(normal, viewDirection, sunDirection, albedo, roughness, metallic,
-        sunColorIntensity.rgb * sunColorIntensity.w) * visibility(input.worldPosition, saturate(dot(normal, sunDirection)));
+        sunColorIntensity.rgb * sunColorIntensity.w) * visibility(input.worldPosition, saturate(dot(normal, sunDirection)), input.normal);
     for (uint lightIndex = 0; lightIndex < (uint)settings.y; ++lightIndex) {
         PointLight light = pointLights[lightIndex];
         float3 offset = light.positionRange.xyz - input.worldPosition;
         float distanceSquared = max(dot(offset, offset), 0.01);
         float fade = saturate(1 - distanceSquared / (light.positionRange.w * light.positionRange.w));
+        if (light.cone.y > 0.5) {
+            float angle = dot(normalize(-offset), normalize(light.directionOuter.xyz));
+            fade *= smoothstep(light.directionOuter.w, light.cone.x, angle);
+        }
         float3 radiance = light.colorIntensity.rgb * light.colorIntensity.w * fade * fade / distanceSquared;
         color += evaluateLight(normal, viewDirection, normalize(offset), albedo, roughness, metallic, radiance);
     }

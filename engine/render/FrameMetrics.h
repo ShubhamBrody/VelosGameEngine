@@ -24,7 +24,9 @@ public:
         return {{"adapter", stats.adapter}, {"samples", cpu_.size()}, {"cpu_frame", distribution(cpu_)}, {"gpu_scene", distribution(gpu_)},
             {"instancing", instancing}, {"lods", lods}, {"camera_draws", stats.cameraDraws}, {"shadow_draws", stats.shadowDraws},
             {"triangles", stats.triangles}, {"visible_objects", stats.visibleObjects}, {"culled_objects", stats.culledObjects},
-            {"lod_triangles_saved", stats.lodTrianglesSaved}, {"gpu_memory_bytes", stats.gpuUsage}};
+            {"lod_triangles_saved", stats.lodTrianglesSaved}, {"gpu_memory_bytes", stats.gpuUsage},
+            {"dxr_supported", stats.rayTracingSupported}, {"ray_shadows_active", stats.rayTracedShadows},
+            {"shadow_path", stats.shadowStatus}, {"dxr_memory_bytes", stats.rayTracingBytes}, {"dxr_budget_bytes", stats.rayTracingBudget}};
     }
 private:
     std::vector<double> cpu_;

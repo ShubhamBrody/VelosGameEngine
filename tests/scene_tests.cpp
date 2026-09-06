@@ -123,6 +123,18 @@ void testMaterials() {
     }
     require(loaded.deserialize(legacy.dump(), error), "Legacy untextured scene must still load.");
     require(loaded.get<velos::MeshRenderer>(id)->textures[0].empty(), "Legacy material default texture.");
+    const auto spot = scene.create("Spotlight");
+    velos::Light spotlight;
+    spotlight.kind = velos::LightKind::Spot;
+    spotlight.innerAngle = 20;
+    spotlight.outerAngle = 40;
+    scene.set<velos::Light>(spot, spotlight);
+    scene.rayTracedShadows = true;
+    require(loaded.deserialize(scene.serialize(), error) && loaded.get<velos::Light>(spot)->kind == velos::LightKind::Spot
+        && loaded.rayTracedShadows, "Spotlights and optional shadow policy must round trip.");
+    invalid = scene.toJson();
+    invalid["entities"][1]["light"]["innerAngle"] = 80;
+    require(!loaded.deserialize(invalid.dump(), error), "Invalid spotlight cones must be rejected.");
 }
 
 }
