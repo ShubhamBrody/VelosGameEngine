@@ -22,3 +22,7 @@ jobs:
       - name: Native WARP smoke
         shell: pwsh
         run: ./tools/smoke.ps1 -Configuration ${{ matrix.configuration }} -Adapter warp
+      - name: Graphics WARP smoke
+        if: matrix.configuration == 'Release'
+        shell: pwsh
+        run: ./tools/graphics-smoke.ps1 -Configuration Release -Adapter warp

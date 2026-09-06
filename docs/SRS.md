@@ -6,7 +6,7 @@
 | Version | 0.2 (draft) |
 | Status | Proposed requirements; hardware and release scope await approval |
 | Conforms to | IEEE 830-style, adapted |
-| Last updated | 2026-09-06 |
+| Last updated | 2026-09-07 |
 
 **Requirement keywords:** *shall* = required when its release scope is accepted, *should* =
 recommended, *may* = optional. IDs are stable. Milestone columns identify work packages, not
@@ -28,6 +28,20 @@ semantic AI caching are deferred unless explicitly selected. Baseline versions a
 in [MILESTONES.md](MILESTONES.md). The native preview implements a subset, recorded in
 [../README.md](../README.md); the acceptance performance targets in this SRS remain unverified,
 even though small-scene development-machine timings and runtime checks have been collected.
+
+Graphics checkpoint `v0.1.0-preview.2` (2026-09-07) implements partial slices of the existing IDs:
+
+| Requirement area | Implemented subset | Remaining contract |
+|---|---|---|
+| FR-REND-003 / FR-REND-005 / FR-REND-006 | Sixteen point/spot lights, first directional sun, PCF map; optional DXR hard sun shadows | Area lights, local-light shadows, cascades/atlases and broader budgets |
+| FR-REND-008 / FR-REND-009 / FR-REND-013 | Material-compatible instancing, two generated screen-size LODs, sorted transparency | Skinning, dithered transitions and correct floating-point HDR compositing |
+| FR-ASSET-001 / FR-ASSET-007 / FR-ASSET-008 | Separate image-map import, linear-light mips, BC1/3/5, vertex-cache/fetch optimization and simplified index LODs | Full format list/material import, BC6H/7, GPU compression, quantization and meshlets |
+| FR-SCALE-004 / FR-SCALE-005 / FR-SCALE-007 | DXR capability/budget fallback, draw/LOD/memory counters, fixed stress-scene JSON distributions | Declarative quality tiers, complete profiler and frozen hardware acceptance |
+| FR-CACHE-005 / FR-ASSET-009 | Separate bounded mesh/texture/DXR admission and disk caches | Mip/LOD residency eviction, async streaming and unified pressure management |
+
+The baseline shader path remains SM 6.0; the optional ray-query pixel variant requires explicitly
+queried DXR 1.1 and SM 6.5 on a physical adapter. It supplies directional hard shadows, not GI or
+reflections. All 214 requirement IDs remain unchanged; partial implementation is not full acceptance.
 
 ## 2. System context
 

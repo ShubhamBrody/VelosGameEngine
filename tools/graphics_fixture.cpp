@@ -85,6 +85,18 @@ int main(int argc, char** argv) {
         velos::writeTextAtomic(directory / "spotlight.velos", lighting.serialize());
         lighting.get<velos::Light>(spotlight)->kind = velos::LightKind::Point;
         velos::writeTextAtomic(directory / "point-reference.velos", lighting.serialize());
+        velos::Scene detail;
+        detail.name = "Ray and Raster LOD Consistency";
+        detail.rayTracedShadows = true;
+        const auto sphere = detail.addPrimitive("sphere", "Isolated convex caster");
+        detail.get<velos::Transform>(sphere)->position = {0,1,0};
+        detail.get<velos::Transform>(sphere)->scale = {0.5f,0.5f,0.5f};
+        detail.get<velos::MeshRenderer>(sphere)->color = {0.85f,0.35f,0.12f,1};
+        const auto sun = detail.create("Sun");
+        detail.set<velos::Light>(sun, velos::Light{});
+        velos::writeTextAtomic(directory / "ray-lod.velos", detail.serialize());
+        detail.shadows = false;
+        velos::writeTextAtomic(directory / "ray-lod-reference.velos", detail.serialize());
         std::cout << "Generated material fixture: " << velos::utf8(directory.native()) << '\n';
     } catch (const std::exception& error) { std::cerr << error.what() << '\n'; result = 1; }
     if (SUCCEEDED(initialized)) { CoUninitialize(); }

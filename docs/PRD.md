@@ -6,7 +6,7 @@
 | Version | 0.2 (draft) |
 | Status | Product scope draft; native preview implements a limited subset |
 | Owner | Project lead |
-| Last updated | 2026-09-06 |
+| Last updated | 2026-09-07 |
 
 ---
 
@@ -80,6 +80,13 @@ prediction and semantic similarity are not required for correctness. Basic anima
 playback and blending, not an animation-graph editor. Basic post means tonemapping, FXAA and
 optional spatial resolution scaling, not mandatory temporal upscaling.
 
+The `v0.1.0-preview.2` graphics checkpoint adds image-map materials, mip/compression cooking,
+instancing, mesh LODs, point/spot lighting and opt-in DXR directional hard shadows to the earlier
+authoring/physics/AI/export slice. Unsupported hardware retains raster shadows. It does not
+complete the first-playable release gate: C# scripting and audio are still missing. IBL/GI,
+full HDR post-processing, streaming, animation, game UI and the complete 2D toolchain also remain
+outside this checkpoint. See [MILESTONES.md](MILESTONES.md) for partial evidence and remaining work.
+
 ### 4.4 User scenarios
 
 | ID | Priority | Given / When / Then |
@@ -93,9 +100,11 @@ optional spatial resolution scaling, not mandatory temporal upscaling.
 
 ### 4.5 Assumptions and approval
 
-The engine name, actual test hardware, available developer time, API/backend, UI toolkit and
-license remain open. No schedule or performance measurement exists yet. Confirm the hardware,
-first sample-game type and editor approach before M0 code work; record accepted choices in ADRs.
+The engine name, release hardware, available developer time and license remain open. Native
+C++/Win32/D3D12/ImGui implementation defaults and measured development adapters are recorded in
+[adr/README.md](adr/README.md). Short fixed-scene measurements now exist, but neither a schedule
+nor the SRS minimum-hardware acceptance has been established. Freeze those choices before
+claiming release gates or general low-end performance.
 
 ## 5. Non-goals (explicitly out of scope for v1.0)
 

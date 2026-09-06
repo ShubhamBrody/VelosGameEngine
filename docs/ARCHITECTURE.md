@@ -5,7 +5,7 @@
 | Document | Architecture / Technical Design |
 | Version | 0.2 (draft) |
 | Status | Target design; native preview implements a documented subset |
-| Last updated | 2026-09-06 |
+| Last updated | 2026-09-07 |
 
 ---
 
@@ -704,14 +704,42 @@ Consulted on 2026-09-06 for the proposal:
 - [Ollama embedding API](https://docs.ollama.com/api/embed): native embedding requests use `/api/embed`.
 - [.NET support policy](https://dotnet.microsoft.com/en-us/platform/support/policy/dotnet-core): .NET 10 is LTS; .NET 8 support ends November 10, 2026.
 
-The target architecture remains a design proposal beyond the implemented preview. The current
-code has a renderer-independent EnTT scene model, a render-extraction adapter, an explicit-pass
-D3D12 renderer, Win32/ImGui editor, Jolt primitive physics, static GLB geometry cooking, native
-WinHTTP AI adapters and folder packaging. It uses SHA-256, conventional 0..1 depth and static CRT
-linkage; it does not yet implement the full render graph, GPU compute scene processing, C# host,
-texture pipeline, unified residency cache or advanced AI tools described above.
+The target architecture remains a design proposal beyond `v0.1.0-preview.2`. The current code has
+a renderer-independent EnTT scene model, a render-extraction adapter, an explicit-pass D3D12
+renderer, Win32/ImGui editor, Jolt primitive physics, native WinHTTP AI adapters and folder
+packaging. It uses SHA-256, conventional 0..1 depth and static CRT linkage.
 
-Eight CTest groups, NVIDIA/Intel/WARP editor/runtime smoke checks, actual screenshot pixel checks
-and a live local Ollama request have passed. The development iGPU is UHD 770, not the proposed
-minimum UHD 620. Full benchmark, fuzzing, soak, security and clean-machine release gates are still
-unverified. See [../README.md](../README.md) for build commands and precise preview limits.
+The implemented graphics path now consists of:
+- A shared data-only material schema with four image-map references. DirectXTex cooks bounded
+  2D images to mipmapped DDS, using sRGB for albedo/emission and linear data for normal/ORM.
+  BC3 preserves color-map alpha, BC5 stores normal XY and BC1 stores ORM. Small/uncompressed
+  images use RGBA8. Source/settings/tool revisions participate in cache keys.
+- Meshoptimizer vertex-cache/fetch optimization and up to two simplified index LODs sharing
+  the vertex buffer. Version-2 cooked geometry validates every index range on load.
+- Revision-cached extraction and undo snapshots. The renderer constructs CPU-frustum-visible
+  instance lists, selects screen-size LODs, sorts transparent objects back-to-front, and batches
+  compatible mesh/LOD/texture/surface state. Per-instance material values occupy 256-byte records
+  in fence-protected upload buffers. Submission uses real `DrawIndexedInstanced` calls.
+- Sixteen local point/spot lights with hierarchical transforms and half-angle cone attenuation.
+  The first directional light supplies the sun. The baseline shadow map remains one fixed
+  orthographic directional PCF map; point/spot lights are not shadowed.
+- Optional DXR 1.1 / SM 6.5 inline directional shadow queries. Per-mesh-LOD BLAS resources are
+  cached; two fence-slot TLAS resources rebuild when the scene revision or geometry LOD keys
+  change. Visible ray geometry matches its raster LOD to avoid false self-shadowing. Dynamic
+  transforms rebuild the TLAS; this is not a refit/compaction or skinned-ray pipeline.
+- A configurable 0-256 MB DXR allocation cap. Unsupported/software adapters, masked shadow
+  casters, wireframe and exhausted budgets keep raster shadows. Status distinguishes support
+  from actual use. Transparent/unlit objects are excluded from shadow casting in both paths.
+
+The 256 MB mesh and 256 MB texture caps are separate from DXR and other renderer allocations.
+These are admission limits, not a unified residency manager; GPU data/descriptors are retained
+for the session. Uploads use synchronous immediate submission, and per-frame lists still allocate.
+The full render graph, compute/indirect scene processing, IBL/GI, HDR post stack, streaming,
+C# host and advanced AI tools above are not implemented.
+
+Eleven CTest groups pass in Debug and Release. Release graphics checks pass on NVIDIA/Intel/WARP,
+including actual GPU readback images, export equivalence and small/large editor windows. NVIDIA
+also exercises DXR, zero-budget/masked fallback and the ray/LOD regression. The earlier live
+Ollama check remains the AI integration evidence. The development iGPU is UHD 770, not the
+proposed UHD 620 baseline. Full benchmark, fuzzing, soak, security and clean-machine release gates
+remain unverified. See [../README.md](../README.md) for commands and measured development results.

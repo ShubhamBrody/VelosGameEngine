@@ -3,7 +3,7 @@
 Decisions are recorded before implementation (`NFR-PROC-004`). Each accepted decision becomes
 `ADR-NNNN-title.md`. Until then it sits in the **open decisions** table below as `OD-NN`.
 
-Status on 2026-09-06: the native preview uses the implementation defaults below; remaining choices
+Status on 2026-09-07: the native preview uses the implementation defaults below; remaining choices
 and full milestone acceptance are still open. Existing FR/NFR and milestone IDs remain stable
 across drafts; record the chosen option, test evidence and consequences before changing architecture.
 
@@ -23,9 +23,22 @@ bundled for shader compilation. Windows SHA-256 provides the initial content cac
 BLAKE3, and conventional 0..1 depth is implemented instead of the proposed reversed-Z path.
 These differences are explicit preview choices, not claims that the full target design is done.
 
-Evidence: eight native test groups, real loopback HTTP/cancellation/credential tests, native GPU
-smoke checks on NVIDIA/Intel/WARP, and a live small-model Ollama request. No UHD 620/GTX 1050
-benchmark, production security audit or clean-machine distribution gate has been completed.
+The subsequent request to build the missing rendering features authorizes the graphics preview
+increment. It adds pinned DirectXTex and meshoptimizer, separate 256 MB mesh/texture admission
+limits, and an optional 0-256 MB DXR structure budget. BC1/3/5 and full mip chains are cooked on
+the CPU; the renderer owns GPU uploads. Textures are authored separately from geometry-only GLB
+import. Instancing and screen-size index LODs retain an unbatched/base-mesh reference path.
+
+Ray-traced directional hard shadows require physical DXR 1.1 / SM 6.5 support and are off by
+default. Raster shadows remain the baseline and the fallback for masked casters, unsupported
+adapters, wireframe or DXR budget exhaustion. Raster/ray LODs must agree; TLAS validity includes
+camera-driven LOD changes. This choice does not select a GI system, add ray-traced reflections,
+or change the baseline SM 6.0 requirement. Unified residency and device recovery remain future work.
+
+Evidence: eleven native test groups in Debug/Release, Release graphics and export checks on
+NVIDIA/Intel/WARP, actual ray queries on NVIDIA and image-based LOD/fallback regressions. The
+earlier live small-model Ollama request is separate AI evidence. No UHD 620/GTX 1050 benchmark,
+production security audit or clean-machine distribution gate has been completed.
 
 ## Open decisions - the discussion agenda
 

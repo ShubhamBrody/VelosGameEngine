@@ -2,7 +2,8 @@ param(
     [ValidateSet('Debug', 'Release')][string]$Configuration = 'Debug',
     [switch]$Test,
     [switch]$Run,
-    [string]$Adapter = 'auto'
+    [string]$Adapter = 'auto',
+    [string]$BuildDirectory = 'out\build'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -21,7 +22,7 @@ if (-not (Test-Path -LiteralPath $cmake)) {
     if (-not $cmakeCommand) { throw 'Install CMake tools for Windows in the Visual Studio Installer.' }
     $cmake = $cmakeCommand.Source
 }
-$buildDirectory = Join-Path $root 'out\build'
+if (-not [System.IO.Path]::IsPathRooted($BuildDirectory)) { $BuildDirectory = Join-Path $root $BuildDirectory }
 & $cmake -S $root -B $buildDirectory -G $generator -A x64 -DBUILD_TESTING=ON
 if ($LASTEXITCODE -ne 0) { throw 'CMake configuration failed.' }
 & $cmake --build $buildDirectory --config $Configuration --parallel 8

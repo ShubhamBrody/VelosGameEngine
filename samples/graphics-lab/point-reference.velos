@@ -1,0 +1,410 @@
+{
+  "ambient": 0.05000000074505806,
+  "entities": [
+    {
+      "body": {
+        "mass": 1.0,
+        "motion": "static",
+        "restitution": 0.15000000596046448
+      },
+      "id": 1,
+      "mesh": {
+        "alphaCutoff": 0.5,
+        "asset": "plane",
+        "color": [
+          0.27000001072883606,
+          0.28999999165534973,
+          0.30000001192092896,
+          1.0
+        ],
+        "doubleSided": true,
+        "emission": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "emissionStrength": 0.0,
+        "metallic": 0.0,
+        "normalStrength": 1.0,
+        "roughness": 0.8999999761581421,
+        "shadow": true,
+        "surface": 0,
+        "textures": [
+          "",
+          "",
+          "",
+          ""
+        ],
+        "unlit": false,
+        "uvOffset": [
+          0.0,
+          0.0
+        ],
+        "uvScale": [
+          1.0,
+          1.0
+        ]
+      },
+      "name": "Ground",
+      "parent": 0,
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        20.0,
+        1.0,
+        20.0
+      ],
+      "visible": true
+    },
+    {
+      "body": {
+        "mass": 1.0,
+        "motion": "dynamic",
+        "restitution": 0.15000000596046448
+      },
+      "id": 2,
+      "mesh": {
+        "alphaCutoff": 0.5,
+        "asset": "cube",
+        "color": [
+          0.23999999463558197,
+          0.7300000190734863,
+          0.6399999856948853,
+          1.0
+        ],
+        "doubleSided": true,
+        "emission": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "emissionStrength": 0.0,
+        "metallic": 0.0,
+        "normalStrength": 1.0,
+        "roughness": 0.44999998807907104,
+        "shadow": true,
+        "surface": 0,
+        "textures": [
+          "",
+          "",
+          "",
+          ""
+        ],
+        "unlit": false,
+        "uvOffset": [
+          0.0,
+          0.0
+        ],
+        "uvScale": [
+          1.0,
+          1.0
+        ]
+      },
+      "name": "Mint block",
+      "parent": 0,
+      "position": [
+        -1.600000023841858,
+        1.2000000476837158,
+        0.0
+      ],
+      "rotation": [
+        0.0,
+        0.22310635447502136,
+        0.0,
+        0.9747940897941589
+      ],
+      "scale": [
+        1.7000000476837158,
+        1.7000000476837158,
+        1.7000000476837158
+      ],
+      "visible": true
+    },
+    {
+      "body": {
+        "mass": 1.0,
+        "motion": "dynamic",
+        "restitution": 0.15000000596046448
+      },
+      "id": 3,
+      "keyboardDrive": 4.0,
+      "mesh": {
+        "alphaCutoff": 0.5,
+        "asset": "sphere",
+        "color": [
+          0.949999988079071,
+          0.4300000071525574,
+          0.2800000011920929,
+          1.0
+        ],
+        "doubleSided": true,
+        "emission": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "emissionStrength": 0.0,
+        "metallic": 0.550000011920929,
+        "normalStrength": 1.0,
+        "roughness": 0.25,
+        "shadow": true,
+        "surface": 0,
+        "textures": [
+          "",
+          "",
+          "",
+          ""
+        ],
+        "unlit": false,
+        "uvOffset": [
+          0.0,
+          0.0
+        ],
+        "uvScale": [
+          1.0,
+          1.0
+        ]
+      },
+      "name": "Copper sphere",
+      "parent": 0,
+      "position": [
+        1.25,
+        0.9200000166893005,
+        0.4000000059604645
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        1.7999999523162842,
+        1.7999999523162842,
+        1.7999999523162842
+      ],
+      "visible": true
+    },
+    {
+      "body": {
+        "mass": 1.0,
+        "motion": "static",
+        "restitution": 0.15000000596046448
+      },
+      "id": 4,
+      "mesh": {
+        "alphaCutoff": 0.5,
+        "asset": "cube",
+        "color": [
+          0.6200000047683716,
+          0.6499999761581421,
+          0.6800000071525574,
+          1.0
+        ],
+        "doubleSided": true,
+        "emission": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "emissionStrength": 0.0,
+        "metallic": 0.0,
+        "normalStrength": 1.0,
+        "roughness": 0.44999998807907104,
+        "shadow": true,
+        "surface": 0,
+        "textures": [
+          "",
+          "",
+          "",
+          ""
+        ],
+        "unlit": false,
+        "uvOffset": [
+          0.0,
+          0.0
+        ],
+        "uvScale": [
+          1.0,
+          1.0
+        ]
+      },
+      "name": "Plinth",
+      "parent": 0,
+      "position": [
+        0.0,
+        0.30000001192092896,
+        -2.200000047683716
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        2.200000047683716,
+        0.6000000238418579,
+        1.7999999523162842
+      ],
+      "visible": true
+    },
+    {
+      "id": 5,
+      "mesh": {
+        "alphaCutoff": 0.5,
+        "asset": "cube",
+        "color": [
+          0.9100000262260437,
+          0.7599999904632568,
+          0.2800000011920929,
+          1.0
+        ],
+        "doubleSided": true,
+        "emission": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "emissionStrength": 0.0,
+        "metallic": 0.0,
+        "normalStrength": 1.0,
+        "roughness": 0.44999998807907104,
+        "shadow": true,
+        "surface": 0,
+        "textures": [
+          "",
+          "",
+          "",
+          ""
+        ],
+        "unlit": false,
+        "uvOffset": [
+          0.0,
+          0.0
+        ],
+        "uvScale": [
+          1.0,
+          1.0
+        ]
+      },
+      "name": "Rotating study",
+      "parent": 0,
+      "position": [
+        0.0,
+        1.350000023841858,
+        -2.200000047683716
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "spin": 28.0,
+      "visible": true
+    },
+    {
+      "id": 6,
+      "name": "Sun",
+      "parent": 0,
+      "position": [
+        -4.0,
+        7.0,
+        3.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "visible": true
+    },
+    {
+      "id": 7,
+      "name": "Cool fill",
+      "parent": 0,
+      "position": [
+        3.0,
+        3.0,
+        -2.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "visible": true
+    },
+    {
+      "id": 8,
+      "light": {
+        "color": [
+          1.0,
+          0.9599999785423279,
+          0.8799999952316284
+        ],
+        "direction": [
+          0.0,
+          -1.0,
+          0.0
+        ],
+        "innerAngle": 35.0,
+        "intensity": 100.0,
+        "kind": "point",
+        "outerAngle": 70.0,
+        "range": 16.0
+      },
+      "name": "Overhead spotlight",
+      "parent": 0,
+      "position": [
+        0.0,
+        6.0,
+        0.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "visible": true
+    }
+  ],
+  "mode": "3d",
+  "name": "Spotlight Laboratory",
+  "rayTracedShadows": true,
+  "schema": 1,
+  "shadows": false
+}

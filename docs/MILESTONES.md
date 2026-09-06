@@ -4,7 +4,7 @@
 |---|---|
 | Document | Delivery roadmap |
 | Version | 0.2 (draft) |
-| Last updated | 2026-09-06 |
+| Last updated | 2026-09-07 |
 
 **How to read this:** milestone IDs are stable work packages, not a mandatory serial implementation
 order. Start a package only when its dependencies and decisions are satisfied. A completed package
@@ -26,6 +26,33 @@ conditions; replace guessed numbers with approved workload gates after bring-up.
 estimates depend on developer capacity, experience and hardware availability, which are still open.
 
 ## Release route and partial gates
+
+### Graphics preview checkpoint: 2026-09-07
+
+`v0.1.0-preview.2` extends the native preview; it is not full M4/M6/M9/M11 or Unity/Unreal parity.
+
+| Slice | Implemented | Evidence / checkpoint |
+|---|---|---|
+| Textures / surfaces | Four image maps, UV/emission/normal controls, alpha modes, sRGB/data mips, BC1/3/5 DDS cooking, texture dependencies in exports | Texture/scene/package tests and rendered material fixture; `aa83b22` |
+| Batching / LODs | Real instanced draws, compatible-material sorting, meshoptimizer cooking, two reduced LODs, per-pass counters, idle snapshot reuse | Draw planner/mesh/scene tests; exact sampled batching images; `c625591` |
+| Lighting / rays | Sixteen point/spot lights; optional DXR 1.1 hard directional shadows; matching raster/ray LODs; explicit capability/masked/budget fallback | Lighting transforms/cones tests, NVIDIA DXR, Intel/WARP fallback, GPU validation; `628c74d` |
+| Authoring / distribution | Material inspector, spotlight creation, DXR controls/status, saved graphics laboratory, standalone textured and ray-shadow exports | Large/small editor play/undo/resize tests and exact sampled source/export images |
+
+All eleven CTest groups pass in Debug/Release. The repeatable
+[../tools/graphics-smoke.ps1](../tools/graphics-smoke.ps1) suite passes in Release on RTX 4070 Ti
+SUPER, Intel UHD 770 and WARP. It also tests zero-budget fallback and an isolated LOD sphere to
+catch ray/raster self-shadow mismatches. WARP is correctness evidence, not performance evidence.
+
+The fixed 1,000-object development workload reduces camera/shadow draws from 691/1,001 to 3/3.
+With LODs it submits 606,537 rather than 855,988 triangles. The 180-frame non-debug measurements
+and exact conditions are in [../README.md](../README.md); they do not satisfy the SRS frozen
+low-end benchmark. Original preview builds and user-authored files have been retained.
+
+Remaining work includes IBL/GI and reflections, HDR/post/AA, cascades and local-light shadows,
+render graphs, compute/indirect culling, true residency streaming, embedded GLB material import,
+C# scripting, prefabs, audio, animation, full 2D/game UI, navigation, networking, terrain/world
+tools, additional platforms and production security/reliability gates. No full numbered
+milestone is closed by this graphics checkpoint.
 
 ### Native preview checkpoint: 2026-09-06
 
