@@ -7,6 +7,16 @@ Status on 2026-09-06: all choices below are proposals. No decision has been acce
 implementation milestone is complete. Existing FR/NFR and milestone IDs remain stable across
 drafts; record the chosen option, test evidence and consequences before changing architecture.
 
+## Initial implementation defaults
+
+The 2026-09-06 request to build the engine starts a native preview using C++20, Win32, D3D12,
+bounded descriptor tables and Dear ImGui docking (OD-01/02/03/05). MSVC 2026 and its bundled
+CMake are the available local toolchain (OD-18). These are implementation defaults for the first
+testable slice, not acceptance of every proposed feature or performance target. Scene/ECS and
+asset storage remain independent of GPU resources; scripting and advanced rendering stay gated.
+Local development adapters are Intel UHD 770 and RTX 4070 Ti SUPER; OD-07's low-end release
+baseline is still unconfirmed. No license or remote-publication choice is made by starting code.
+
 ## Open decisions - the discussion agenda
 
 Ordered by how soon they block work.

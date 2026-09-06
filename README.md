@@ -35,15 +35,15 @@ Read them in this order:
 
 | | |
 |---|---|
-| Phase | **Planning draft v0.2; M0 code work has not started** |
-| Code | none yet (by design) |
-| Next | Resolve the open decisions in [docs/adr/README.md](docs/adr/README.md), then start M0 scaffolding |
+| Phase | **Native preview in development; M0/M5 foundation is partially implemented** |
+| Code | C++20 build, fixed-step clock, EnTT scenes, serialization, undo/redo, atomic files and bounded disk cache |
+| Next | D3D12 viewport and native editor; full milestone acceptance and low-end budgets remain open |
 
 The roadmap has 27 work packages, not 27 mandatory blockers before a playable result. The first
 release gate combines scene authoring, scripting, physics, basic lighting/audio, bounded caches,
 early AI chat (M18.A) and a standalone sample (M23.A). Basic v1.0 adds 2D, UI and production
 workflows. Advanced GPU-driven rendering, GI, AI scene tools, material graphs and Vulkan remain
-separately gated. No performance measurements or runnable engine exist yet.
+separately gated. Core tests run; the editor and hardware rendering benchmarks are the next slice.
 
 ## Repository layout (target)
 
@@ -75,9 +75,17 @@ separately gated. No performance measurements or runnable engine exist yet.
 
 ## Building
 
-Not yet applicable. CMake/MSVC, D3D12, the UI toolkit and scripting host are proposals tracked in
-[docs/adr/README.md](docs/adr/README.md). No ADR is accepted and no build toolchain is installed
-or configured by this planning work.
+Requires Windows x64, Visual Studio 2022/2026 with Desktop development with C++, CMake tools and
+the Windows SDK. The first configure downloads dependencies at immutable commit hashes.
+
+```powershell
+.\tools\build.ps1 -Configuration Debug -Test
+```
+
+The script locates Visual Studio's bundled CMake without changing your global PATH. The initial
+cache uses Windows SHA-256, integrity checks and byte-budgeted LRU; BLAKE3, streaming residency
+and other advanced cache features remain future work. See [docs/adr/README.md](docs/adr/README.md)
+for implementation defaults and decisions that are still open.
 
 ## Git workflow
 
