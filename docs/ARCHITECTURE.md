@@ -4,7 +4,7 @@
 |---|---|
 | Document | Architecture / Technical Design |
 | Version | 0.2 (draft) |
-| Status | Proposed design; validate with hardware spikes before accepting ADRs |
+| Status | Target design; native preview implements a documented subset |
 | Last updated | 2026-09-06 |
 
 ---
@@ -704,5 +704,14 @@ Consulted on 2026-09-06 for the proposal:
 - [Ollama embedding API](https://docs.ollama.com/api/embed): native embedding requests use `/api/embed`.
 - [.NET support policy](https://dotnet.microsoft.com/en-us/platform/support/policy/dotnet-core): .NET 10 is LTS; .NET 8 support ends November 10, 2026.
 
-All module boundaries and performance estimates remain design proposals. No engine, driver
-benchmark, shader, provider integration or runtime test has been implemented or executed yet.
+The target architecture remains a design proposal beyond the implemented preview. The current
+code has a renderer-independent EnTT scene model, a render-extraction adapter, an explicit-pass
+D3D12 renderer, Win32/ImGui editor, Jolt primitive physics, static GLB geometry cooking, native
+WinHTTP AI adapters and folder packaging. It uses SHA-256, conventional 0..1 depth and static CRT
+linkage; it does not yet implement the full render graph, GPU compute scene processing, C# host,
+texture pipeline, unified residency cache or advanced AI tools described above.
+
+Eight CTest groups, NVIDIA/Intel/WARP editor/runtime smoke checks, actual screenshot pixel checks
+and a live local Ollama request have passed. The development iGPU is UHD 770, not the proposed
+minimum UHD 620. Full benchmark, fuzzing, soak, security and clean-machine release gates are still
+unverified. See [../README.md](../README.md) for build commands and precise preview limits.

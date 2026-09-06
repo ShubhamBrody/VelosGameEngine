@@ -57,6 +57,10 @@ struct Spin {
     float degreesPerSecond = 30.0f;
 };
 
+struct KeyboardDrive {
+    float speed = 4.0f;
+};
+
 class Scene {
 public:
     Scene() = default;
@@ -68,6 +72,7 @@ public:
     std::string name = "Untitled";
     float ambient = 0.32f;
     bool shadows = true;
+    bool twoDimensional = false;
 
     EntityId create(std::string name);
     EntityId addPrimitive(std::string mesh, std::string name = {});

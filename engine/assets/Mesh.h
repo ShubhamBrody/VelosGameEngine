@@ -30,6 +30,7 @@ MeshData makeCube();
 MeshData makeSphere();
 MeshData makePlane(bool vertical = false);
 MeshData decodeGlb(std::span<const std::byte> bytes);
+MeshData loadGlb(std::span<const std::byte> source, DiskCache& cache);
 MeshData loadGlb(const std::filesystem::path& path, DiskCache& cache);
 
 }

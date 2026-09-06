@@ -43,6 +43,12 @@ int main() {
         require(velos::readText(root / "source.txt") == "keep me", "Cache clear must not delete source files.");
         velos::writeTextAtomic(root / "source.txt", "replacement");
         require(velos::readText(root / "source.txt") == "replacement", "Atomic replacement must preserve the complete new file.");
+        require(velos::projectAssetPath(root, "Assets/test.glb").parent_path() == std::filesystem::weakly_canonical(root) / "Assets",
+            "Relative asset path resolution.");
+        bool denied = false;
+        try { static_cast<void>(velos::projectAssetPath(root, "../escape.glb")); }
+        catch (const std::runtime_error&) { denied = true; }
+        require(denied, "Escaping project paths must be rejected.");
         std::filesystem::remove_all(root);
         std::cout << "PASS: hashing, cache hits, LRU, budgets, corruption, TTL, path validation and atomic files.\n";
         return 0;

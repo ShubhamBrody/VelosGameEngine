@@ -25,7 +25,9 @@ The basic release includes authoring, simulation, rendering, persistence, packag
 M10, M19, M20 and M24 are advanced/optional. Within shared milestones, clustered/many-light
 rendering and baked GI, predictive caching, animation graphs/IK, temporal upscaling/GTAO and
 semantic AI caching are deferred unless explicitly selected. Baseline versions are identified
-in [MILESTONES.md](MILESTONES.md). No performance number is a measured result yet.
+in [MILESTONES.md](MILESTONES.md). The native preview implements a subset, recorded in
+[../README.md](../README.md); the acceptance performance targets in this SRS remain unverified,
+even though small-scene development-machine timings and runtime checks have been collected.
 
 ## 2. System context
 

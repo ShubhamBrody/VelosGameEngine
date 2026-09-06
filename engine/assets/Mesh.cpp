@@ -98,6 +98,14 @@ MeshData decodeGlb(std::span<const std::byte> bytes) {
     if (cgltf_load_buffers(&options, data.get(), nullptr) != cgltf_result_success || cgltf_validate(data.get()) != cgltf_result_success) {
         throw std::runtime_error("GLB buffers or accessors are invalid.");
     }
+    for (cgltf_size nodeIndex = 0; nodeIndex < data->nodes_count; ++nodeIndex) {
+        const cgltf_node* ancestor = &data->nodes[nodeIndex];
+        std::size_t depth = 0;
+        while (ancestor) {
+            if (++depth > 64) { throw std::runtime_error("GLB hierarchy is cyclic or exceeds 64 levels."); }
+            ancestor = ancestor->parent;
+        }
+    }
     MeshData mesh;
     for (cgltf_size nodeIndex = 0; nodeIndex < data->nodes_count; ++nodeIndex) {
         const auto& node = data->nodes[nodeIndex];
@@ -173,8 +181,7 @@ MeshData decodeGlb(std::span<const std::byte> bytes) {
     return mesh;
 }
 
-MeshData loadGlb(const std::filesystem::path& path, DiskCache& cache) {
-    const auto source = readBytes(path, 64 * 1024 * 1024);
+MeshData loadGlb(std::span<const std::byte> source, DiskCache& cache) {
     const auto key = sha256("velos-static-glb-v1:" + sha256(source));
     struct Header { std::uint32_t version; std::uint32_t vertices; std::uint32_t indices; };
     if (const auto cached = cache.get(key); cached && cached->size() >= sizeof(Header)) {
@@ -203,6 +210,11 @@ MeshData loadGlb(const std::filesystem::path& path, DiskCache& cache) {
     std::memcpy(cooked.data() + sizeof(header) + mesh.vertices.size() * sizeof(Vertex), mesh.indices.data(), mesh.indices.size() * sizeof(std::uint32_t));
     static_cast<void>(cache.put(key, cooked));
     return mesh;
+}
+
+MeshData loadGlb(const std::filesystem::path& path, DiskCache& cache) {
+    const auto source = readBytes(path, 64 * 1024 * 1024);
+    return loadGlb(source, cache);
 }
 
 }

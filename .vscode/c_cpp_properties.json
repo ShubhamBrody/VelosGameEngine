@@ -1,0 +1,24 @@
+{
+  "version": 4,
+  "configurations": [
+    {
+      "name": "Windows",
+      "intelliSenseMode": "windows-msvc-x64",
+      "cStandard": "c17",
+      "cppStandard": "c++20",
+      "includePath": [
+        "${workspaceFolder}/engine",
+        "${workspaceFolder}/editor",
+        "${workspaceFolder}/out/build/_deps/entt-src/src",
+        "${workspaceFolder}/out/build/_deps/json-src/include",
+        "${workspaceFolder}/out/build/_deps/jolt-src",
+        "${workspaceFolder}/out/build/_deps/cgltf-src",
+        "${workspaceFolder}/out/build/_deps/imgui-src",
+        "${workspaceFolder}/out/build/_deps/imgui-src/backends",
+        "${workspaceFolder}/out/build/_deps/imgui-src/misc/cpp",
+        "${workspaceFolder}/out/build/_deps/imguizmo-src/src"
+      ],
+      "defines": ["NOMINMAX", "WIN32_LEAN_AND_MEAN", "UNICODE", "_UNICODE"]
+    }
+  ]
+}

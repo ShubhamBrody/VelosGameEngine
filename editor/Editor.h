@@ -1,13 +1,16 @@
 #pragma once
 
+#include "AssistantPanel.h"
 #include "bridge/Extract.h"
 #include "core/FixedStepClock.h"
 #include "rhi/d3d12/Renderer.h"
+#include "physics/PhysicsWorld.h"
 #include "scene/History.h"
 
 #include <array>
 #include <deque>
 #include <filesystem>
+#include <future>
 #include <string>
 
 namespace velos {
@@ -18,14 +21,15 @@ public:
     ~Editor();
     void draw(double elapsed);
     void update(double elapsed);
-    void openScene(const std::filesystem::path& path);
+    bool openScene(const std::filesystem::path& path);
     bool saveScene(bool choosePath = false);
     void startPlay();
     void stopPlay();
     void stepPlay();
-    void resetLayout() { layoutBuilt_ = false; }
+    void resetLayout() { layoutBuilt_ = false; forceLayout_ = true; }
     void requestClose();
     void runAuthoringCheck();
+    void importGlb(const std::filesystem::path& path);
     [[nodiscard]] RenderFrame& frame() { return frame_; }
     [[nodiscard]] bool wantsClose() const noexcept { return wantsClose_; }
     [[nodiscard]] bool vsync() const noexcept { return vsync_; }
@@ -39,6 +43,13 @@ private:
     Scene scene_;
     History history_;
     FixedStepClock clock_;
+    PhysicsWorld physics_;
+    AssistantPanel assistant_;
+    DiskCache geometryCache_;
+    struct ImportedAsset { MeshData mesh; std::string reference; std::string name; std::filesystem::path project; };
+    std::future<ImportedAsset> import_;
+    std::future<std::filesystem::path> export_;
+    std::string importStatus_;
     RenderFrame frame_;
     EntityId selected_ = 2;
     std::filesystem::path scenePath_;
@@ -60,6 +71,7 @@ private:
     bool localSpace_ = false;
     bool vsync_ = true;
     bool layoutBuilt_ = false;
+    bool forceLayout_ = false;
     bool wantsClose_ = false;
     bool showUnsaved_ = false;
     bool changed_ = false;
@@ -85,6 +97,8 @@ private:
     void pick(float horizontal, float vertical, float width, float height);
     void applyPendingAction();
     std::filesystem::path chooseScenePath(bool save);
+    void chooseImport();
+    void exportRuntime();
 };
 
 }

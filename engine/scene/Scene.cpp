@@ -94,6 +94,7 @@ EntityId Scene::duplicate(EntityId id) {
     if (const auto* value = get<Light>(id)) { set<Light>(copy, *value); }
     if (const auto* value = get<RigidBody>(id)) { set<RigidBody>(copy, *value); }
     if (const auto* value = get<Spin>(id)) { set<Spin>(copy, *value); }
+    if (const auto* value = get<KeyboardDrive>(id)) { set<KeyboardDrive>(copy, *value); }
     return copy;
 }
 
@@ -163,6 +164,14 @@ bool Scene::reparent(EntityId id, EntityId parent, bool preserveWorld) {
         if (ancestor == id || ++depth > 64) { return false; }
         ancestor = get<Transform>(ancestor)->parent;
     }
+    for (const auto descendant : order_) {
+        auto current = descendant;
+        std::size_t levels = 0;
+        while (current != 0) {
+            if (++levels > 65) { return false; }
+            current = current == id ? parent : get<Transform>(current)->parent;
+        }
+    }
     const auto original = *get<Transform>(id);
     const auto world = worldMatrix(id);
     get<Transform>(id)->parent = parent;
@@ -211,11 +220,13 @@ Json Scene::entityJson(EntityId id) const {
             {"mass", body->mass}, {"restitution", body->restitution}};
     }
     if (const auto* spin = get<Spin>(id)) { result["spin"] = spin->degreesPerSecond; }
+    if (const auto* drive = get<KeyboardDrive>(id)) { result["keyboardDrive"] = drive->speed; }
     return result;
 }
 
 Json Scene::toJson() const {
-    Json result{{"schema", 1}, {"name", name}, {"ambient", ambient}, {"shadows", shadows}, {"entities", Json::array()}};
+    Json result{{"schema", 1}, {"name", name}, {"ambient", ambient}, {"shadows", shadows},
+        {"mode", twoDimensional ? "2d" : "3d"}, {"entities", Json::array()}};
     for (const auto id : order_) { result["entities"].push_back(entityJson(id)); }
     return result;
 }
@@ -238,6 +249,9 @@ bool Scene::deserialize(std::string_view text, std::string& error) {
         if (candidate.name.empty() || candidate.name.size() > 128) { throw std::runtime_error("Invalid scene name."); }
         candidate.ambient = bounded(root, "ambient", 0.32f, 0.0f, 4.0f);
         candidate.shadows = root.value("shadows", true);
+        const auto mode = root.value("mode", std::string("3d"));
+        if (mode != "3d" && mode != "2d") { throw std::runtime_error("Unknown scene view mode."); }
+        candidate.twoDimensional = mode == "2d";
         const auto& entities = root.at("entities");
         if (!entities.is_array() || entities.size() > 10000) { throw std::runtime_error("Invalid entity list."); }
         for (const auto& entity : entities) {
@@ -306,6 +320,9 @@ bool Scene::deserialize(std::string_view text, std::string& error) {
             if (entity.contains("spin")) {
                 candidate.set<Spin>(id, {bounded(entity, "spin", 30, -3600, 3600)});
             }
+            if (entity.contains("keyboardDrive")) {
+                candidate.set<KeyboardDrive>(id, {bounded(entity, "keyboardDrive", 4, 0.1f, 100)});
+            }
         }
         for (const auto id : candidate.order_) {
             auto ancestor = candidate.get<Transform>(id)->parent;
@@ -347,6 +364,7 @@ Scene Scene::demo() {
     scene.get<MeshRenderer>(sphere)->roughness = 0.25f;
     scene.get<MeshRenderer>(sphere)->metallic = 0.55f;
     scene.set<RigidBody>(sphere);
+    scene.set<KeyboardDrive>(sphere);
     const auto pedestal = scene.addPrimitive("cube", "Plinth");
     scene.get<Transform>(pedestal)->position = {0, 0.3f, -2.2f};
     scene.get<Transform>(pedestal)->scale = {2.2f, 0.6f, 1.8f};

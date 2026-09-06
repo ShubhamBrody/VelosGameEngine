@@ -1,0 +1,280 @@
+{
+  "ambient": 0.3199999928474426,
+  "entities": [
+    {
+      "body": {
+        "mass": 1.0,
+        "motion": "static",
+        "restitution": 0.15000000596046448
+      },
+      "id": 1,
+      "mesh": {
+        "asset": "plane",
+        "color": [
+          0.27000001072883606,
+          0.28999999165534973,
+          0.30000001192092896,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.8999999761581421,
+        "shadow": true,
+        "unlit": false
+      },
+      "name": "Ground",
+      "parent": 0,
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        20.0,
+        1.0,
+        20.0
+      ],
+      "visible": true
+    },
+    {
+      "body": {
+        "mass": 1.0,
+        "motion": "dynamic",
+        "restitution": 0.15000000596046448
+      },
+      "id": 2,
+      "mesh": {
+        "asset": "cube",
+        "color": [
+          0.23999999463558197,
+          0.7300000190734863,
+          0.6399999856948853,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.44999998807907104,
+        "shadow": true,
+        "unlit": false
+      },
+      "name": "Mint block",
+      "parent": 0,
+      "position": [
+        -1.600000023841858,
+        1.2000000476837158,
+        0.0
+      ],
+      "rotation": [
+        0.0,
+        0.22310635447502136,
+        0.0,
+        0.9747940897941589
+      ],
+      "scale": [
+        1.7000000476837158,
+        1.7000000476837158,
+        1.7000000476837158
+      ],
+      "visible": true
+    },
+    {
+      "body": {
+        "mass": 1.0,
+        "motion": "dynamic",
+        "restitution": 0.15000000596046448
+      },
+      "id": 3,
+      "keyboardDrive": 4.0,
+      "mesh": {
+        "asset": "sphere",
+        "color": [
+          0.949999988079071,
+          0.4300000071525574,
+          0.2800000011920929,
+          1.0
+        ],
+        "metallic": 0.550000011920929,
+        "roughness": 0.25,
+        "shadow": true,
+        "unlit": false
+      },
+      "name": "Copper sphere",
+      "parent": 0,
+      "position": [
+        1.25,
+        0.9200000166893005,
+        0.4000000059604645
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        1.7999999523162842,
+        1.7999999523162842,
+        1.7999999523162842
+      ],
+      "visible": true
+    },
+    {
+      "body": {
+        "mass": 1.0,
+        "motion": "static",
+        "restitution": 0.15000000596046448
+      },
+      "id": 4,
+      "mesh": {
+        "asset": "cube",
+        "color": [
+          0.6200000047683716,
+          0.6499999761581421,
+          0.6800000071525574,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.44999998807907104,
+        "shadow": true,
+        "unlit": false
+      },
+      "name": "Plinth",
+      "parent": 0,
+      "position": [
+        0.0,
+        0.30000001192092896,
+        -2.200000047683716
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        2.200000047683716,
+        0.6000000238418579,
+        1.7999999523162842
+      ],
+      "visible": true
+    },
+    {
+      "id": 5,
+      "mesh": {
+        "asset": "cube",
+        "color": [
+          0.9100000262260437,
+          0.7599999904632568,
+          0.2800000011920929,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.44999998807907104,
+        "shadow": true,
+        "unlit": false
+      },
+      "name": "Rotating study",
+      "parent": 0,
+      "position": [
+        0.0,
+        1.350000023841858,
+        -2.200000047683716
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "spin": 28.0,
+      "visible": true
+    },
+    {
+      "id": 6,
+      "light": {
+        "color": [
+          1.0,
+          0.9599999785423279,
+          0.8799999952316284
+        ],
+        "direction": [
+          -0.5,
+          -1.0,
+          -0.30000001192092896
+        ],
+        "intensity": 3.0,
+        "kind": "directional",
+        "range": 12.0
+      },
+      "name": "Sun",
+      "parent": 0,
+      "position": [
+        -4.0,
+        7.0,
+        3.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "visible": true
+    },
+    {
+      "id": 7,
+      "light": {
+        "color": [
+          0.4000000059604645,
+          0.7200000286102295,
+          1.0
+        ],
+        "direction": [
+          -0.5,
+          -1.0,
+          -0.30000001192092896
+        ],
+        "intensity": 18.0,
+        "kind": "point",
+        "range": 12.0
+      },
+      "name": "Cool fill",
+      "parent": 0,
+      "position": [
+        3.0,
+        3.0,
+        -2.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "visible": true
+    }
+  ],
+  "mode": "3d",
+  "name": "Workshop",
+  "schema": 1,
+  "shadows": true
+}

@@ -48,6 +48,21 @@ void testScene() {
     invalid = loaded.toJson();
     invalid["schema"] = 99;
     require(!scene.deserialize(invalid.dump(), error), "Future schemas must not be silently loaded.");
+    velos::Scene deep;
+    auto chain = deep.create("Root");
+    for (int level = 0; level < 60; ++level) {
+        const auto childId = deep.create("Chain");
+        require(deep.reparent(childId, chain, false), "Valid hierarchy depth.");
+        chain = childId;
+    }
+    const auto subtree = deep.create("Subtree");
+    auto leaf = subtree;
+    for (int level = 0; level < 6; ++level) {
+        const auto childId = deep.create("Leaf");
+        require(deep.reparent(childId, leaf, false), "Valid small subtree.");
+        leaf = childId;
+    }
+    require(!deep.reparent(subtree, chain, false), "Reparent must account for descendant depth.");
 }
 
 void testHistory() {

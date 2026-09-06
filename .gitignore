@@ -38,6 +38,7 @@ cmake-build-*/
 !.vscode/extensions.json
 !.vscode/launch.json
 !.vscode/tasks.json
+!.vscode/c_cpp_properties.json
 
 # ---- .NET (scripting layer, tools) ----
 [Bb]in/

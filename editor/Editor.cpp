@@ -1,5 +1,7 @@
 #include "Editor.h"
 #include "platform/Files.h"
+#include "physics/Gameplay.h"
+#include "assets/Package.h"
 
 #include <imgui.h>
 #include <imgui_internal.h>
@@ -11,6 +13,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cfloat>
+#include <set>
 
 namespace velos {
 using namespace DirectX;
@@ -28,6 +31,20 @@ bool iconButton(const char* glyph, const char* tooltip, bool active = false) {
     if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", tooltip); }
     ImGui::PopID();
     return pressed;
+}
+
+bool vectorControl(const char* label, float* values, float speed, float minimum, float maximum,
+    const char* format, ImGuiSliderFlags flags = 0) {
+    if (ImGui::GetContentRegionAvail().x < 280) {
+        ImGui::TextUnformatted(label);
+        ImGui::PushID(label);
+        ImGui::SetNextItemWidth(-1);
+        const bool changed = ImGui::DragFloat3("##Value", values, speed, minimum, maximum, format, flags);
+        ImGui::PopID();
+        return changed;
+    }
+    ImGui::SetNextItemWidth(-80);
+    return ImGui::DragFloat3(label, values, speed, minimum, maximum, format, flags);
 }
 
 void configureStyle() {
@@ -77,7 +94,8 @@ void configureStyle() {
 }
 
 Editor::Editor(HWND window, Renderer& renderer, bool isolated)
-    : window_(window), renderer_(renderer), scene_(Scene::demo()), isolated_(isolated) {
+        : window_(window), renderer_(renderer), scene_(Scene::demo()), assistant_(isolated),
+            geometryCache_(localDataDirectory() / L"cache" / L"geometry", 512 * 1024 * 1024), isolated_(isolated) {
     auto& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable | ImGuiConfigFlags_NavEnableKeyboard;
     layoutPath_ = utf8((localDataDirectory() / L"editor-layout.ini").native());
@@ -108,9 +126,38 @@ void Editor::log(std::string message, bool error) {
 }
 
 void Editor::update(double elapsed) {
+    if (export_.valid() && export_.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+        try { log("Runtime exported to " + utf8(export_.get().native())); }
+        catch (const std::exception& error) { log(error.what(), true); }
+    }
+    if (import_.valid() && import_.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+        try {
+            auto asset = import_.get();
+            if (scenePath_.parent_path() != asset.project) { throw std::runtime_error("Import completed for a project that is no longer open."); }
+            renderer_.addMesh(asset.reference, asset.mesh);
+            history_.begin(scene_);
+            selected_ = scene_.addPrimitive(asset.reference, asset.name);
+            history_.commit(scene_, "Import GLB");
+            log("Imported " + asset.name + ": " + std::to_string(asset.mesh.vertices.size()) + " vertices.");
+            focusSelection();
+        } catch (const std::exception& error) { log(error.what(), true); }
+        importStatus_.clear();
+    }
     if (playing_ && !paused_) {
         const auto ticks = clock_.advance(elapsed);
-        for (std::uint32_t index = 0; index < ticks.steps; ++index) { scene_.tick(clock_.stepSeconds()); }
+        try {
+            for (std::uint32_t index = 0; index < ticks.steps; ++index) {
+                const bool inputEnabled = GetForegroundWindow() == window_ && !ImGui::GetIO().WantTextInput;
+                const auto down = [&](int key) { return inputEnabled && (GetAsyncKeyState(key) & 0x8000) != 0; };
+                driveBodies(scene_, physics_, frame_.camera, static_cast<float>(down('D')) - static_cast<float>(down('A')),
+                    static_cast<float>(down('W')) - static_cast<float>(down('S')));
+                scene_.tick(clock_.stepSeconds());
+                physics_.step(scene_, static_cast<float>(clock_.stepSeconds()));
+            }
+        } catch (const std::exception& error) {
+            log(error.what(), true);
+            stopPlay();
+        }
     }
     if (!playing_ && !isolated_ && !scenePath_.empty()) {
         autosaveSeconds_ += elapsed;
@@ -123,7 +170,11 @@ void Editor::update(double elapsed) {
 }
 
 void Editor::startPlay() {
+    if (import_.valid()) { log("Wait for the current import before starting simulation."); return; }
+    assistant_.cancel();
     if (playing_) { paused_ = !paused_; return; }
+    try { physics_.start(scene_); }
+    catch (const std::exception& error) { log(error.what(), true); return; }
     playSnapshot_ = scene_.serialize();
     playing_ = true;
     paused_ = false;
@@ -134,6 +185,7 @@ void Editor::startPlay() {
 
 void Editor::stopPlay() {
     if (!playing_) { return; }
+    physics_.stop();
     std::string error;
     if (!scene_.deserialize(playSnapshot_, error)) { log("Cannot restore authored scene: " + error, true); return; }
     playing_ = paused_ = false;
@@ -144,23 +196,27 @@ void Editor::stopPlay() {
 
 void Editor::stepPlay() {
     if (!playing_) { startPlay(); }
+    if (!playing_) { return; }
     paused_ = true;
     scene_.tick(clock_.stepSeconds());
+    physics_.step(scene_, static_cast<float>(clock_.stepSeconds()));
 }
 
 void Editor::buildLayout() {
     const auto* viewport = ImGui::GetMainViewport();
     const auto dockId = ImGui::GetID("VelosDock");
-    if (!layoutBuilt_ && (isolated_ || !ImGui::DockBuilderGetNode(dockId))) {
+    if (!layoutBuilt_ && (isolated_ || forceLayout_ || !ImGui::DockBuilderGetNode(dockId))) {
         ImGui::DockBuilderRemoveNode(dockId);
         ImGui::DockBuilderAddNode(dockId, ImGuiDockNodeFlags_DockSpace);
         ImGui::DockBuilderSetNodeSize(dockId, ImVec2(viewport->WorkSize.x, viewport->WorkSize.y - 43));
         auto center = dockId;
         const auto left = ImGui::DockBuilderSplitNode(center, ImGuiDir_Left, 0.17f, nullptr, &center);
-        const auto right = ImGui::DockBuilderSplitNode(center, ImGuiDir_Right, 0.255f, nullptr, &center);
+        auto right = ImGui::DockBuilderSplitNode(center, ImGuiDir_Right, 0.255f, nullptr, &center);
+        const auto assistant = ImGui::DockBuilderSplitNode(right, ImGuiDir_Down, 0.46f, nullptr, &right);
         const auto bottom = ImGui::DockBuilderSplitNode(center, ImGuiDir_Down, 0.24f, nullptr, &center);
         ImGui::DockBuilderDockWindow("Scene", left);
         ImGui::DockBuilderDockWindow("Inspector", right);
+        ImGui::DockBuilderDockWindow("Assistant", assistant);
         ImGui::DockBuilderDockWindow("Viewport", center);
         ImGui::DockBuilderDockWindow("Assets", bottom);
         ImGui::DockBuilderDockWindow("Console", bottom);
@@ -168,6 +224,7 @@ void Editor::buildLayout() {
         ImGui::DockBuilderFinish(dockId);
     }
     layoutBuilt_ = true;
+    forceLayout_ = false;
     ImGui::SetNextWindowPos(ImVec2(viewport->WorkPos.x, viewport->WorkPos.y + 43));
     ImGui::SetNextWindowSize(ImVec2(viewport->WorkSize.x, viewport->WorkSize.y - 43));
     ImGui::SetNextWindowViewport(viewport->ID);
@@ -184,6 +241,7 @@ void Editor::buildLayout() {
 void Editor::draw(double elapsed) {
     changed_ = false;
     gizmoActive_ = false;
+    if (frame_.camera.orthographic != scene_.twoDimensional) { frame_.camera.set2D(scene_.twoDimensional); }
     elapsedSmoothed_ = elapsedSmoothed_ * 0.92f + static_cast<float>(elapsed * 1000) * 0.08f;
     frameTimes_[frameIndex_++ % frameTimes_.size()] = static_cast<float>(elapsed * 1000);
     if (!playing_) { history_.begin(scene_); }
@@ -195,6 +253,7 @@ void Editor::draw(double elapsed) {
     assets();
     diagnostics();
     console();
+    assistant_.draw(scene_, scenePath_, playing_);
     dialogs();
     if (pendingDuplicate_ != 0 && !playing_) {
         selected_ = scene_.duplicate(pendingDuplicate_);
@@ -255,7 +314,11 @@ void Editor::toolbar() {
         ImGui::EndDisabled();
         ImGui::EndPopup();
     }
-    ImGui::SameLine(std::max(420.0f, viewport->WorkSize.x * 0.45f));
+    ImGui::SameLine();
+    ImGui::BeginDisabled(playing_ || import_.valid() || export_.valid());
+    if (ImGui::Button("\uE898  Export", ImVec2(90,28))) { exportRuntime(); }
+    ImGui::EndDisabled();
+    ImGui::SameLine(std::max(500.0f, viewport->WorkSize.x * 0.45f));
     if (iconButton(playing_ && !paused_ ? "\uE769" : "\uE768", playing_ && !paused_ ? "Pause simulation" : "Play simulation", playing_)) { startPlay(); }
     ImGui::SameLine();
     ImGui::BeginDisabled(!playing_);
@@ -330,6 +393,7 @@ void Editor::hierarchyItem(EntityId id) {
     ImGui::PushID(static_cast<int>(id));
     const bool open = ImGui::TreeNodeEx("##Entity", flags, "%s  %s", scene_.get<Light>(id) ? "\uE706" : "\uE7B8", identity.name.c_str());
     if (ImGui::IsItemClicked()) { selected_ = id; }
+    if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", identity.name.c_str()); }
     if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(0)) { selected_ = id; focusSelection(); }
     if (ImGui::BeginDragDropSource()) {
         ImGui::SetDragDropPayload("VELOS_ENTITY", &id, sizeof(id));
@@ -366,24 +430,26 @@ void Editor::inspector() {
             auto& identity = *scene_.get<Identity>(selected_);
             ImGui::SetNextItemWidth(-1);
             changed_ |= ImGui::InputText("##Name", &identity.name);
+            if (identity.name.size() > 128) { identity.name.resize(128); }
+            if (ImGui::IsItemDeactivatedAfterEdit() && identity.name.empty()) { identity.name = "Entity"; }
             ImGui::TextDisabled("Entity %llu", static_cast<unsigned long long>(selected_));
             changed_ |= ImGui::Checkbox("Visible", &identity.visible);
             ImGui::SeparatorText("Transform");
             auto& transform = *scene_.get<Transform>(selected_);
             ImGui::PushItemWidth(-80);
-            changed_ |= ImGui::DragFloat3("Position", &transform.position.x, 0.02f, -10000, 10000, "%.2f");
+            changed_ |= vectorControl("Position", &transform.position.x, 0.02f, -10000, 10000, "%.3g");
             XMFLOAT4X4 local;
             XMStoreFloat4x4(&local, transform.matrix());
             float translation[3]{};
             float rotation[3]{};
             float scale[3]{};
             ImGuizmo::DecomposeMatrixToComponents(&local._11, translation, rotation, scale);
-            if (ImGui::DragFloat3("Rotation", rotation, 0.5f, -360, 360, "%.1f")) {
+            if (vectorControl("Rotation", rotation, 0.5f, -360, 360, "%.3g")) {
                 XMStoreFloat4(&transform.rotation, XMQuaternionRotationRollPitchYaw(XMConvertToRadians(rotation[0]),
                     XMConvertToRadians(rotation[1]), XMConvertToRadians(rotation[2])));
                 changed_ = true;
             }
-            changed_ |= ImGui::DragFloat3("Scale", &transform.scale.x, 0.01f, 0.01f, 1000, "%.2f", ImGuiSliderFlags_AlwaysClamp);
+            changed_ |= vectorControl("Scale", &transform.scale.x, 0.01f, 0.01f, 1000, "%.3g", ImGuiSliderFlags_AlwaysClamp);
             ImGui::PopItemWidth();
             if (auto* mesh = scene_.get<MeshRenderer>(selected_)) {
                 ImGui::SeparatorText("Material");
@@ -403,7 +469,7 @@ void Editor::inspector() {
                 changed_ |= ImGui::DragFloat("Intensity", &light->intensity, 0.05f, 0, 1000, "%.2f", ImGuiSliderFlags_AlwaysClamp);
                 if (light->kind == LightKind::Directional) {
                     auto direction = light->direction;
-                    if (ImGui::DragFloat3("Direction", &direction.x, 0.01f, -1, 1)) {
+                    if (vectorControl("Direction", &direction.x, 0.01f, -1, 1, "%.3g")) {
                         if (XMVectorGetX(XMVector3LengthSq(XMLoadFloat3(&direction))) > 1e-5f) { light->direction = direction; changed_ = true; }
                     }
                 } else {
@@ -414,13 +480,51 @@ void Editor::inspector() {
                 ImGui::SeparatorText("Rotation behavior");
                 changed_ |= ImGui::DragFloat("Degrees / sec", &spin->degreesPerSecond, 0.5f, -3600, 3600);
                 if (ImGui::SmallButton("Remove rotation behavior")) { scene_.remove<Spin>(selected_); changed_ = true; }
-            } else if (ImGui::Button("Add rotation behavior", ImVec2(-1,0))) {
-                scene_.set<Spin>(selected_);
-                changed_ = true;
+            } else {
+                const auto* body = scene_.get<RigidBody>(selected_);
+                ImGui::BeginDisabled(body != nullptr);
+                if (ImGui::Button("Add rotation behavior", ImVec2(-1,0))) {
+                    scene_.set<Spin>(selected_);
+                    changed_ = true;
+                }
+                ImGui::EndDisabled();
             }
-            if (scene_.get<RigidBody>(selected_)) {
+            if (auto* body = scene_.get<RigidBody>(selected_)) {
                 ImGui::SeparatorText("Rigid body");
-                ImGui::TextDisabled("%s", scene_.get<RigidBody>(selected_)->motion == BodyMotion::Static ? "Static" : "Dynamic");
+                int motion = body->motion == BodyMotion::Static ? 0 : 1;
+                if (ImGui::Combo("Motion", &motion, "Static\0Dynamic\0")) {
+                    body->motion = motion == 0 ? BodyMotion::Static : BodyMotion::Dynamic;
+                    if (motion == 0) { scene_.remove<KeyboardDrive>(selected_); }
+                    else { scene_.remove<Spin>(selected_); }
+                    changed_ = true;
+                }
+                changed_ |= ImGui::DragFloat("Mass (kg)", &body->mass, 0.1f, 0.01f, 100000, "%.2f", ImGuiSliderFlags_AlwaysClamp);
+                changed_ |= ImGui::SliderFloat("Restitution", &body->restitution, 0, 1);
+                if (ImGui::SmallButton("Remove rigid body")) {
+                    scene_.remove<RigidBody>(selected_);
+                    scene_.remove<KeyboardDrive>(selected_);
+                    changed_ = true;
+                }
+                if (auto* drive = scene_.get<KeyboardDrive>(selected_)) {
+                    ImGui::SeparatorText("Keyboard drive");
+                    changed_ |= ImGui::DragFloat("Speed", &drive->speed, 0.1f, 0.1f, 100, "%.1f", ImGuiSliderFlags_AlwaysClamp);
+                    if (ImGui::SmallButton("Remove keyboard drive")) { scene_.remove<KeyboardDrive>(selected_); changed_ = true; }
+                } else {
+                    const auto* currentBody = scene_.get<RigidBody>(selected_);
+                    ImGui::BeginDisabled(!currentBody || currentBody->motion != BodyMotion::Dynamic);
+                    if (ImGui::Button("Add keyboard drive", ImVec2(-1,0))) {
+                        scene_.set<KeyboardDrive>(selected_);
+                        changed_ = true;
+                    }
+                    ImGui::EndDisabled();
+                }
+            } else if (const auto* mesh = scene_.get<MeshRenderer>(selected_);
+                mesh && (mesh->mesh == "cube" || mesh->mesh == "sphere" || mesh->mesh == "plane")) {
+                if (ImGui::Button("Add rigid body", ImVec2(-1,0))) {
+                    scene_.set<RigidBody>(selected_, {mesh->mesh == "plane" ? BodyMotion::Static : BodyMotion::Dynamic});
+                    scene_.remove<Spin>(selected_);
+                    changed_ = true;
+                }
             }
             ImGui::EndDisabled();
         }
@@ -444,7 +548,11 @@ void Editor::viewport() {
         ImGui::SameLine();
         ImGui::SetNextItemWidth(100);
         int mode = frame_.camera.orthographic ? 1 : 0;
-        if (ImGui::Combo("##Camera mode", &mode, "3D\0 2D\0")) { frame_.camera.set2D(mode == 1); }
+        if (ImGui::Combo("##Camera mode", &mode, "3D\0 2D\0")) {
+            frame_.camera.set2D(mode == 1);
+            scene_.twoDimensional = mode == 1;
+            changed_ = true;
+        }
         ImGui::SameLine();
         ImGui::Checkbox("Grid", &grid_);
         ImGui::SameLine();
@@ -502,6 +610,10 @@ void Editor::viewport() {
 
 void Editor::assets() {
     if (ImGui::Begin("Assets")) {
+        ImGui::BeginDisabled(playing_ || import_.valid());
+        if (ImGui::Button("\uE8E5  Import GLB")) { chooseImport(); }
+        ImGui::EndDisabled();
+        if (import_.valid()) { ImGui::SameLine(); ImGui::TextDisabled("%s", importStatus_.c_str()); }
         ImGui::TextDisabled("BUILT-IN GEOMETRY");
         ImGui::Separator();
         for (const auto* mesh : {"cube", "sphere", "plane", "quad"}) {
@@ -515,6 +627,13 @@ void Editor::assets() {
                 ImGui::EndDragDropSource();
             }
             ImGui::PopID();
+        }
+        std::set<std::string> listed;
+        for (const auto id : scene_.entities()) {
+            const auto* mesh = scene_.get<MeshRenderer>(id);
+            if (!mesh || !mesh->mesh.starts_with("Assets/") || !listed.insert(mesh->mesh).second) { continue; }
+            if (ImGui::Selectable((scene_.get<Identity>(id)->name + "##asset" + mesh->mesh).c_str(), selected_ == id)) { selected_ = id; }
+            if (ImGui::IsItemHovered()) { ImGui::SetTooltip("%s", mesh->mesh.c_str()); }
         }
     }
     ImGui::End();
@@ -531,6 +650,9 @@ void Editor::diagnostics() {
         const auto cache = renderer_.shaderCacheStats();
         ImGui::Text("Shader cache: %llu hits, %llu misses, %.1f KB", static_cast<unsigned long long>(cache.hits),
             static_cast<unsigned long long>(cache.misses), static_cast<double>(cache.bytes) / 1024);
+        const auto geometry = geometryCache_.stats();
+        ImGui::Text("Geometry cache: %llu hits, %llu misses | Physics: %zu bodies", static_cast<unsigned long long>(geometry.hits),
+            static_cast<unsigned long long>(geometry.misses), physics_.bodyCount());
         ImGui::PlotLines("##Frame times", frameTimes_.data(), static_cast<int>(frameTimes_.size()),
             static_cast<int>(frameIndex_ % frameTimes_.size()), nullptr, 0, 50, ImVec2(-1,55));
         ImGui::Checkbox("VSync", &vsync_);
@@ -645,6 +767,19 @@ bool Editor::saveScene(bool choosePath) {
         auto destination = scenePath_;
         if (choosePath || destination.empty()) { destination = chooseScenePath(true); }
         if (destination.empty()) { return false; }
+        if (!scenePath_.empty() && destination.parent_path() != scenePath_.parent_path()) {
+            for (const auto id : scene_.entities()) {
+                const auto* mesh = scene_.get<MeshRenderer>(id);
+                if (!mesh || !mesh->mesh.starts_with("Assets/")) { continue; }
+                const auto source = projectAssetPath(scenePath_.parent_path(), mesh->mesh);
+                const auto target = projectAssetPath(destination.parent_path(), mesh->mesh);
+                const auto bytes = readBytes(source);
+                if (std::filesystem::exists(target) && sha256(readBytes(target)) != sha256(bytes)) {
+                    throw std::runtime_error("Save As asset conflict; choose an empty destination project folder.");
+                }
+                if (!std::filesystem::exists(target)) { writeAtomic(target, bytes); }
+            }
+        }
         const auto state = scene_.serialize();
         writeTextAtomic(destination, state);
         scenePath_ = destination;
@@ -655,28 +790,41 @@ bool Editor::saveScene(bool choosePath) {
     } catch (const std::exception& error) { log(error.what(), true); return false; }
 }
 
-void Editor::openScene(const std::filesystem::path& path) {
+bool Editor::openScene(const std::filesystem::path& path) {
     try {
+        if (import_.valid()) { throw std::runtime_error("Wait for the current import before opening another project."); }
         Scene candidate;
         std::string error;
         if (!candidate.deserialize(readText(path), error)) { throw std::runtime_error(error); }
+        for (const auto id : candidate.entities()) {
+            const auto* mesh = candidate.get<MeshRenderer>(id);
+            if (!mesh || renderer_.hasMesh(mesh->mesh)) { continue; }
+            if (!mesh->mesh.starts_with("Assets/")) { throw std::runtime_error("Unknown mesh reference: " + mesh->mesh); }
+            const auto source = projectAssetPath(path.parent_path(), mesh->mesh);
+            renderer_.addMesh(mesh->mesh, loadGlb(source, geometryCache_));
+        }
         stopPlay();
+        assistant_.clearConversation();
         scene_ = std::move(candidate);
+        frame_.camera.set2D(scene_.twoDimensional);
         scenePath_ = path;
         savedState_ = scene_.serialize();
         selected_ = scene_.entities().empty() ? 0 : scene_.entities().front();
         history_.clear();
         autosaveSeconds_ = 0;
         log("Opened " + utf8(path.filename().native()));
-    } catch (const std::exception& error) { log(error.what(), true); }
+        return true;
+    } catch (const std::exception& error) { log(error.what(), true); return false; }
 }
 
 void Editor::requestClose() { pendingAction_ = 3; showUnsaved_ = true; }
 
 void Editor::applyPendingAction() {
+    if (import_.valid()) { log("Wait for the current import before switching projects."); pendingAction_ = 0; return; }
     stopPlay();
     history_.clear();
     if (pendingAction_ == 1) {
+        assistant_.clearConversation();
         scene_ = Scene{};
         scene_.name = "Untitled";
         selected_ = 0;
@@ -708,6 +856,71 @@ void Editor::dialogs() {
         if (ImGui::Button("Cancel", ImVec2(100,0))) { pendingAction_ = 0; ImGui::CloseCurrentPopup(); }
         ImGui::EndPopup();
     }
+}
+
+void Editor::chooseImport() {
+    if (scenePath_.empty() && !saveScene()) { return; }
+    ComPtr<IFileOpenDialog> dialog;
+    if (FAILED(CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&dialog)))) {
+        log("Cannot open the model import dialog.", true);
+        return;
+    }
+    const COMDLG_FILTERSPEC filter{L"Static glTF binary model", L"*.glb"};
+    dialog->SetFileTypes(1, &filter);
+    dialog->SetOptions(FOS_FORCEFILESYSTEM | FOS_FILEMUSTEXIST | FOS_NOCHANGEDIR);
+    if (dialog->Show(window_) != S_OK) { return; }
+    ComPtr<IShellItem> item;
+    if (FAILED(dialog->GetResult(&item))) { return; }
+    PWSTR path = nullptr;
+    if (FAILED(item->GetDisplayName(SIGDN_FILESYSPATH, &path))) { return; }
+    const std::filesystem::path source(path);
+    CoTaskMemFree(path);
+    importGlb(source);
+}
+
+void Editor::importGlb(const std::filesystem::path& path) {
+    if (import_.valid() || playing_ || scenePath_.empty()) { log("Save the scene and finish the active operation before importing.", true); return; }
+    const auto project = scenePath_.parent_path();
+    importStatus_ = "Importing " + utf8(path.filename().native());
+    import_ = std::async(std::launch::async, [this, path, project] {
+        const auto bytes = readBytes(path, 64 * 1024 * 1024);
+        const auto digest = sha256(bytes);
+        auto geometry = loadGlb(bytes, geometryCache_);
+        const auto reference = "Assets/" + digest + ".glb";
+        const auto target = projectAssetPath(project, reference);
+        if (std::filesystem::exists(target) && sha256(readBytes(target)) != digest) {
+            throw std::runtime_error("An existing project asset conflicts with the imported content hash.");
+        }
+        if (!std::filesystem::exists(target)) { writeAtomic(target, bytes); }
+        return ImportedAsset{std::move(geometry), reference, utf8(path.stem().native()), project};
+    });
+}
+
+void Editor::exportRuntime() {
+    if (playing_ || import_.valid() || export_.valid()) { return; }
+    if (!saveScene()) { return; }
+    ComPtr<IFileOpenDialog> dialog;
+    if (FAILED(CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&dialog)))) {
+        log("Cannot open the export folder dialog.", true);
+        return;
+    }
+    dialog->SetTitle(L"Choose an empty runtime export folder");
+    dialog->SetOptions(FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM | FOS_NOCHANGEDIR);
+    if (dialog->Show(window_) != S_OK) { return; }
+    ComPtr<IShellItem> item;
+    if (FAILED(dialog->GetResult(&item))) { return; }
+    PWSTR selected = nullptr;
+    if (FAILED(item->GetDisplayName(SIGDN_FILESYSPATH, &selected))) { return; }
+    const std::filesystem::path destination(selected);
+    CoTaskMemFree(selected);
+    const auto source = scenePath_;
+    const auto binaries = executableDirectory();
+    log("Exporting standalone runtime...");
+    export_ = std::async(std::launch::async, [source, destination, binaries] {
+        packageScene(source, destination, binaries);
+        verifyPackage(destination);
+        return destination;
+    });
 }
 
 void Editor::runAuthoringCheck() {

@@ -9,7 +9,8 @@
 **How to read this:** milestone IDs are stable work packages, not a mandatory serial implementation
 order. Start a package only when its dependencies and decisions are satisfied. A completed package
 has recorded acceptance evidence and a `vM<n>` tag. Advanced packages can remain unstarted while a
-basic release ships. No implementation milestone is complete at the current documentation stage.
+basic release ships. The native preview below implements partial slices; full milestone gates
+remain open until their complete requirements and acceptance evidence are satisfied.
 
 **Commit convention:** Conventional Commits (`feat(rhi): ...`, `fix(cache): ...`,
 `docs(arch): ...`, `perf(render): ...`, `test(ecs): ...`, `chore(build): ...`).
@@ -17,14 +18,33 @@ Commit each coherent, validated increment; do not wait for an entire large subsy
 close means an annotated tag, release note and demo/test evidence. Partial gates use suffixes such
 as `vM18-A` and `vM23-A`; planning uses `planning-v0.2`, never a misleading `vM0` completion tag.
 Use the configured/user-approved author, stage only relevant files, and do not publish remotely or
-rewrite previous commits without approval. CI, LFS and release-note automation are planned M0 work,
-not features of this documentation-only repository yet.
+rewrite previous commits without approval. CI configuration is present; LFS setup and release-note
+automation remain planned M0 work.
 
 All numeric exit targets below are provisional. SRS section 5 owns hardware profiles and test
 conditions; replace guessed numbers with approved workload gates after bring-up. Dates and duration
 estimates depend on developer capacity, experience and hardware availability, which are still open.
 
 ## Release route and partial gates
+
+### Native preview checkpoint: 2026-09-06
+
+`v0.1.0-preview.1` is a runnable vertical slice, not completion of all the numbered milestones.
+
+| Area | Implemented evidence | Still outside this checkpoint |
+|---|---|---|
+| Foundation / scene | C++20/CMake, fixed clock, EnTT integration, stable scene IDs, hierarchy, save/load and bounded undo | Full core jobs/allocators/reflection, prefabs and coverage gates |
+| GPU / editor | D3D12 SM6, cached DXC bytecode, lit primitives, directional shadow, native docking editor and transform tools | Render graph, compute/indirect rendering, textures, IBL/GI and temporal effects |
+| Assets / caches | Static GLB geometry import, project-relative sources, cooked cache, integrity checks and LRU budgets | Full import formats/materials, predictive GPU residency and unified cache manager |
+| Gameplay | Fixed-step Jolt primitive bodies, native rotation and keyboard-drive behaviors | C# scripting, animation, audio, game UI and complete 2D gameplay |
+| AI | OpenAI-compatible/Ollama streaming chat, local fallback, cancel, protected keys and exact-response cache | Tool edits, RAG, embeddings, semantic reuse and runtime NPC services |
+| Distribution | Standalone runtime, safe folder export, dependency notices and manifest verification | Installer/signing, sealed archives, clean-machine acceptance and public-release licensing |
+
+Eight CTest groups pass in Debug/Release. Native editor/runtime smoke checks pass on the available
+RTX 4070 Ti SUPER, Intel UHD 770 and WARP, including resize and screenshot pixel checks. A native
+Ollama request was verified against the installed `qwen2.5-coder:1.5b` model. These are preview
+checks, not the SRS's frozen low-end benchmark or full milestone sign-off. Commands and exact
+limitations are in [../README.md](../README.md).
 
 | Gate | Required path | What can wait |
 |---|---|---|

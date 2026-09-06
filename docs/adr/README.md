@@ -3,9 +3,9 @@
 Decisions are recorded before implementation (`NFR-PROC-004`). Each accepted decision becomes
 `ADR-NNNN-title.md`. Until then it sits in the **open decisions** table below as `OD-NN`.
 
-Status on 2026-09-06: all choices below are proposals. No decision has been accepted and no engine
-implementation milestone is complete. Existing FR/NFR and milestone IDs remain stable across
-drafts; record the chosen option, test evidence and consequences before changing architecture.
+Status on 2026-09-06: the native preview uses the implementation defaults below; remaining choices
+and full milestone acceptance are still open. Existing FR/NFR and milestone IDs remain stable
+across drafts; record the chosen option, test evidence and consequences before changing architecture.
 
 ## Initial implementation defaults
 
@@ -16,6 +16,16 @@ testable slice, not acceptance of every proposed feature or performance target. 
 asset storage remain independent of GPU resources; scripting and advanced rendering stay gated.
 Local development adapters are Intel UHD 770 and RTX 4070 Ti SUPER; OD-07's low-end release
 baseline is still unconfirmed. No license or remote-publication choice is made by starting code.
+
+The preview also uses EnTT, Jolt, cgltf and nlohmann/json at pinned commits. Static MSVC CRT
+linkage keeps the native executables independent of a separate VC runtime install; SDK DXC is
+bundled for shader compilation. Windows SHA-256 provides the initial content cache instead of
+BLAKE3, and conventional 0..1 depth is implemented instead of the proposed reversed-Z path.
+These differences are explicit preview choices, not claims that the full target design is done.
+
+Evidence: eight native test groups, real loopback HTTP/cancellation/credential tests, native GPU
+smoke checks on NVIDIA/Intel/WARP, and a live small-model Ollama request. No UHD 620/GTX 1050
+benchmark, production security audit or clean-machine distribution gate has been completed.
 
 ## Open decisions - the discussion agenda
 
@@ -64,8 +74,9 @@ Ordered by how soon they block work.
 | OD-04 | Host a tiny script, call a batched native API, reload repeatedly | Startup/RSS, allocation/call cost, no stale callbacks/handles after reload |
 | OD-13 | Stream/cancel a small prompt; disconnect providers while rendering | Correct fallback, bounded memory, no blocked UI and recorded model/resource limits |
 
-No experiment in this table has run yet. The next discussion should resolve hardware, first-game
-scope and UI expectations; final lighting/GI choices can follow measured renderer bring-up.
+Bring-up and basic UI/provider experiments have now run on the development machine. The C# host
+experiment, final minimum-hardware choice and complete release acceptance remain open. Final
+lighting/GI choices should follow larger representative scene measurements.
 
 ## Template
 

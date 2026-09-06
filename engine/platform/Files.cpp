@@ -52,6 +52,34 @@ std::filesystem::path executableDirectory() {
     return std::filesystem::path(buffer).parent_path();
 }
 
+std::filesystem::path projectAssetPath(const std::filesystem::path& projectDirectory, std::string_view relative) {
+    const auto local = std::filesystem::path(wide(relative));
+    if (local.empty() || local.is_absolute() || local.has_root_name() || relative.find(':') != std::string_view::npos) {
+        throw std::runtime_error("Asset paths must be relative to the scene project.");
+    }
+    for (const auto& component : local) {
+        if (component == L"..") { throw std::runtime_error("Asset paths cannot leave the project."); }
+    }
+    const auto root = std::filesystem::weakly_canonical(projectDirectory);
+    const auto resolved = std::filesystem::weakly_canonical(root / local);
+    auto basePart = root.begin();
+    auto candidatePart = resolved.begin();
+    for (; basePart != root.end(); ++basePart, ++candidatePart) {
+        if (candidatePart == resolved.end() || _wcsicmp(basePart->c_str(), candidatePart->c_str()) != 0) {
+            throw std::runtime_error("Asset path resolves outside the project.");
+        }
+    }
+    auto examined = root;
+    for (const auto& part : local) {
+        examined /= part;
+        const auto attributes = GetFileAttributesW(examined.c_str());
+        if (attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_REPARSE_POINT)) {
+            throw std::runtime_error("Project asset links and reparse points are not supported.");
+        }
+    }
+    return resolved;
+}
+
 std::vector<std::byte> readBytes(const std::filesystem::path& path, std::size_t limit) {
     std::ifstream input(path, std::ios::binary | std::ios::ate);
     if (!input) { throw std::runtime_error("Cannot open file: " + utf8(path.native())); }

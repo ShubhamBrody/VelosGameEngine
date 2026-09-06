@@ -66,3 +66,6 @@ FetchContent_Declare(jolt SYSTEM
     DOWNLOAD_EXTRACT_TIMESTAMP TRUE
     SOURCE_SUBDIR Build)
 FetchContent_MakeAvailable(jolt)
+if(MSVC)
+    set_property(TARGET Jolt PROPERTY MSVC_RUNTIME_LIBRARY "${CMAKE_MSVC_RUNTIME_LIBRARY}")
+endif()

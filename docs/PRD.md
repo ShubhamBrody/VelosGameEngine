@@ -4,7 +4,7 @@
 |---|---|
 | Document | PRD |
 | Version | 0.2 (draft) |
-| Status | Discussion proposal; no implementation decisions approved |
+| Status | Product scope draft; native preview implements a limited subset |
 | Owner | Project lead |
 | Last updated | 2026-09-06 |
 
@@ -19,7 +19,8 @@ and a focused workflow, not a claim that alternatives cannot run on low-end hard
 
 Building an engine costs substantially more than integrating an existing one. We will reuse proven
 libraries for physics, math, ECS, import and audio while owning the runtime, renderer, asset
-pipeline and editor integration. This planning milestone delivers documents, not engine code.
+pipeline and editor integration. The initial planning milestone delivered these documents; a
+native implementation preview now exists, with its tested scope and limits in [../README.md](../README.md).
 
 ## 2. Product vision
 

@@ -566,6 +566,12 @@ struct Renderer::Impl {
     }
 
     void draw(const RenderFrame& frame, ImDrawData* ui, bool vsync) {
+        if (!ui && (sceneWidth != width || sceneHeight != height)) {
+            idle();
+            sceneWidth = width;
+            sceneHeight = height;
+            createSceneTargets();
+        }
         if (frame.objects.size() > maxObjects) { throw std::runtime_error("The preview supports at most 10,000 rendered objects."); }
         const UINT slotIndex = swapchain->GetCurrentBackBufferIndex();
         lastBackbuffer = slotIndex;
@@ -694,6 +700,19 @@ struct Renderer::Impl {
         if (ui && uiReady) { ImGui_ImplDX12_RenderDrawData(ui, commands.Get()); }
         backBarrier = transition(backbuffers[slotIndex].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
         commands->ResourceBarrier(1, &backBarrier);
+        if (!ui) {
+            const std::array copyBarriers{
+                transition(sceneColor.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_SOURCE),
+                transition(backbuffers[slotIndex].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_COPY_DEST)
+            };
+            commands->ResourceBarrier(static_cast<UINT>(copyBarriers.size()), copyBarriers.data());
+            commands->CopyResource(backbuffers[slotIndex].Get(), sceneColor.Get());
+            const std::array restoreBarriers{
+                transition(sceneColor.Get(), D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
+                transition(backbuffers[slotIndex].Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PRESENT)
+            };
+            commands->ResourceBarrier(static_cast<UINT>(restoreBarriers.size()), restoreBarriers.data());
+        }
         check(commands->Close(), "Close frame commands");
         ID3D12CommandList* submitted[] = {commands.Get()};
         queue->ExecuteCommandLists(1, submitted);

@@ -49,6 +49,7 @@ int main(int argc, char** argv) {
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
     const auto comResult = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
     if (FAILED(comResult)) { std::cerr << "COM initialization failed.\n"; return 1; }
+    if (!smoke) { FreeConsole(); }
     int result = 0;
     try {
         velos::Window window(L"Velos | Workshop", width, height);
@@ -59,7 +60,7 @@ int main(int argc, char** argv) {
             velos::Editor editor(window.handle(), renderer, smoke);
             renderer.initializeUi();
             window.inputHandler = ImGui_ImplWin32_WndProcHandler;
-            if (!scenePath.empty()) { editor.openScene(scenePath); }
+            if (!scenePath.empty() && !editor.openScene(scenePath)) { throw std::runtime_error("The requested scene could not be loaded."); }
             if (selfTest) { editor.runAuthoringCheck(); }
             auto previous = std::chrono::steady_clock::now();
             int frameIndex = 0;
@@ -95,7 +96,7 @@ int main(int argc, char** argv) {
             std::cout << "Adapter: " << statistics.adapter << "\nFrames: " << frameIndex
                 << "\nGPU scene: " << statistics.gpuMilliseconds << " ms\nDraws: " << statistics.drawCalls
                 << "\nTriangles: " << statistics.triangles << "\nVisible objects: " << statistics.visibleObjects
-                << "\nD3D12 validation: " << (errors.empty() ? "PASS" : "FAIL") << '\n';
+                << "\nD3D12 validation: " << (!statistics.debugLayer ? "not available" : errors.empty() ? "PASS" : "FAIL") << '\n';
             renderer.shutdownUi();
             window.inputHandler = {};
         }
