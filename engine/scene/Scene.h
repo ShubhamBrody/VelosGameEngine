@@ -6,6 +6,7 @@
 #include <nlohmann/json.hpp>
 
 #include <cstdint>
+#include <atomic>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -78,7 +79,7 @@ public:
     [[nodiscard]] bool contains(EntityId id) const noexcept;
     [[nodiscard]] const std::vector<EntityId>& entities() const noexcept { return order_; }
     [[nodiscard]] std::uint64_t revision() const noexcept { return revision_; }
-    void touch() noexcept { ++revision_; }
+    void touch() noexcept { revision_ = revisionCounter_.fetch_add(1, std::memory_order_relaxed); }
 
     template<class Component> Component* get(EntityId id) {
         const auto found = handles_.find(id);
@@ -110,6 +111,7 @@ public:
     [[nodiscard]] std::vector<std::string> assetReferences() const;
     bool deserialize(std::string_view text, std::string& error);
     [[nodiscard]] static Scene demo();
+    [[nodiscard]] static Scene stress(std::uint32_t count);
 
 private:
     struct WorldCache {
@@ -120,7 +122,8 @@ private:
     std::unordered_map<EntityId, entt::entity> handles_;
     std::vector<EntityId> order_;
     EntityId nextId_ = 1;
-    std::uint64_t revision_ = 1;
+    inline static std::atomic_uint64_t revisionCounter_ = 1;
+    std::uint64_t revision_ = revisionCounter_.fetch_add(1, std::memory_order_relaxed);
     EntityId createWithId(EntityId id, std::string name);
     [[nodiscard]] nlohmann::json entityJson(EntityId id) const;
 };

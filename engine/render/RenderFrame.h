@@ -25,6 +25,9 @@ struct RenderLight {
 };
 
 struct RenderFrame {
+    std::uint64_t sourceRevision = 0;
+    std::uint64_t selectedSource = 0;
+    bool sourceGrid = false;
     Camera camera;
     std::vector<DrawItem> objects;
     std::array<RenderLight, 8> lights{};
@@ -35,6 +38,9 @@ struct RenderFrame {
     float exposure = 1.0f;
     bool shadows = true;
     bool wireframe = false;
+    bool instancing = true;
+    bool lods = true;
+    float lodBias = 1.0f;
 };
 
 struct RendererStats {
@@ -48,6 +54,11 @@ struct RendererStats {
     std::uint32_t drawCalls = 0;
     std::uint32_t triangles = 0;
     std::uint32_t visibleObjects = 0;
+    std::uint32_t cameraDraws = 0;
+    std::uint32_t shadowDraws = 0;
+    std::uint32_t culledObjects = 0;
+    std::uint32_t lodTrianglesSaved = 0;
+    std::uint32_t uploadedInstances = 0;
     std::uint32_t shadowResolution = 1024;
     bool debugLayer = false;
 };

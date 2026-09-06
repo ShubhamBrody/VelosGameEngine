@@ -78,6 +78,8 @@ private:
     bool wantsClose_ = false;
     bool showUnsaved_ = false;
     bool changed_ = false;
+    bool dirty_ = false;
+    std::uint64_t dirtyRevision_ = 0;
     bool gizmoActive_ = false;
     bool isolated_ = false;
     int operation_ = 0;

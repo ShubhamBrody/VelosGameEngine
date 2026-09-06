@@ -1,5 +1,6 @@
 #include "rhi/d3d12/Renderer.h"
 #include "platform/Files.h"
+#include "render/DrawBatches.h"
 
 #include <d3d12.h>
 #include <d3d12sdklayers.h>
@@ -30,7 +31,7 @@ constexpr UINT descriptorCount = 4096;
 constexpr UINT maxObjects = 10000;
 constexpr UINT objectStride = 256;
 constexpr UINT frameDataSize = 1024;
-constexpr UINT uploadSize = frameDataSize + maxObjects * objectStride;
+constexpr UINT uploadSize = frameDataSize + maxObjects * 2 * objectStride;
 
 void check(HRESULT result, const char* operation) {
     if (FAILED(result)) {
@@ -89,8 +90,9 @@ struct ObjectConstants {
     XMFLOAT4 options;
     XMFLOAT4 uvTransform;
     XMFLOAT4 emission;
+    std::array<XMFLOAT4, 3> padding{};
 };
-static_assert(sizeof(ObjectConstants) <= objectStride);
+static_assert(sizeof(ObjectConstants) == objectStride);
 
 void savePng(const std::filesystem::path& path, UINT width, UINT height, UINT stride, BYTE* pixels, UINT bytes) {
     if (static_cast<UINT64>(stride) * height > bytes) { throw std::runtime_error("Incomplete screenshot buffer."); }
@@ -191,6 +193,8 @@ struct Renderer::Impl {
         D3D12_INDEX_BUFFER_VIEW indexView{};
         BoundingBox bounds;
         UINT indexCount = 0;
+        struct Level { D3D12_INDEX_BUFFER_VIEW view; UINT count; };
+        std::vector<Level> levels;
     };
     std::map<std::string, GpuMesh> meshes;
     struct GpuTexture { ComPtr<ID3D12Resource> resource; UINT descriptor = 0; };
@@ -479,12 +483,13 @@ struct Renderer::Impl {
         maps.NumDescriptors = 4;
         maps.BaseShaderRegister = 1;
         maps.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
-        std::array<D3D12_ROOT_PARAMETER, 4> parameters{};
+        std::array<D3D12_ROOT_PARAMETER, 5> parameters{};
         parameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
         parameters[0].Descriptor.ShaderRegister = 0;
         parameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-        parameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-        parameters[1].Descriptor.ShaderRegister = 1;
+        parameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+        parameters[1].Constants.ShaderRegister = 1;
+        parameters[1].Constants.Num32BitValues = 1;
         parameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
         parameters[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
         parameters[2].DescriptorTable.NumDescriptorRanges = 1;
@@ -494,6 +499,9 @@ struct Renderer::Impl {
         parameters[3].DescriptorTable.NumDescriptorRanges = 1;
         parameters[3].DescriptorTable.pDescriptorRanges = &maps;
         parameters[3].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+        parameters[4].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
+        parameters[4].Descriptor.ShaderRegister = 5;
+        parameters[4].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
         D3D12_STATIC_SAMPLER_DESC sampler{};
         sampler.Filter = D3D12_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT;
         sampler.AddressU = sampler.AddressV = sampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
@@ -676,8 +684,43 @@ struct Renderer::Impl {
         constants.settings = {frame.shadows ? 1.0f : 0.0f, static_cast<float>(std::min<UINT>(frame.lightCount, 8)), 1.0f / static_cast<float>(shadowSize), 0};
         constants.lights = frame.lights;
         std::memcpy(slot.mapped, &constants, sizeof(constants));
+        BoundingFrustum localFrustum;
+        BoundingFrustum worldFrustum;
+        if (!frame.camera.orthographic) {
+            BoundingFrustum::CreateFromMatrix(localFrustum, frame.camera.projection(), true);
+            localFrustum.Transform(worldFrustum, XMMatrixInverse(nullptr, frame.camera.view()));
+        }
+        std::vector<VisibleInstance> visibleInstances;
+        std::vector<VisibleInstance> shadowInstances;
+        visibleInstances.reserve(frame.objects.size());
+        shadowInstances.reserve(frame.objects.size());
+        statistics.lodTrianglesSaved = 0;
         for (std::size_t index = 0; index < frame.objects.size(); ++index) {
             const auto& object = frame.objects[index];
+            if (frame.shadows && object.castShadow && !object.unlit && object.surface != SurfaceMode::Transparent) {
+                shadowInstances.push_back({static_cast<UINT>(index), 0, 0});
+            }
+            auto found = meshes.find(object.mesh);
+            if (found == meshes.end()) { found = meshes.find("cube"); }
+            if (found == meshes.end()) { continue; }
+            const auto& mesh = found->second;
+            BoundingBox bounds;
+            mesh.bounds.Transform(bounds, XMLoadFloat4x4(&object.world));
+            if (!frame.camera.orthographic && worldFrustum.Contains(bounds) == DISJOINT) { continue; }
+            const auto center = XMVector3TransformCoord(XMLoadFloat3(&bounds.Center), frame.camera.view());
+            const float depth = std::max(0.001f, -XMVectorGetZ(center));
+            const float radius = XMVectorGetX(XMVector3Length(XMLoadFloat3(&bounds.Extents)));
+            const float diameter = frame.camera.orthographic ? radius * 2 * static_cast<float>(sceneHeight) / frame.camera.distance
+                : radius * XMVectorGetY(frame.camera.projection().r[1]) * static_cast<float>(sceneHeight) / depth;
+            const auto lod = frame.lods ? selectMeshLod(diameter, static_cast<UINT>(mesh.levels.size()), frame.lodBias) : 0;
+            visibleInstances.push_back({static_cast<UINT>(index), lod, depth});
+            statistics.lodTrianglesSaved += (mesh.indexCount - mesh.levels[lod].count) / 3;
+        }
+        const auto shadowPlan = buildDrawBatches(frame.objects, std::move(shadowInstances), frame.instancing);
+        const auto cameraPlan = buildDrawBatches(frame.objects, std::move(visibleInstances), frame.instancing);
+        const auto shadowCount = static_cast<UINT>(shadowPlan.instances.size());
+        const auto writeInstance = [&](std::uint32_t destination, std::uint32_t source) {
+            const auto& object = frame.objects[source];
             ObjectConstants data{};
             data.world = object.world;
             XMStoreFloat4x4(&data.normal, XMMatrixTranspose(XMMatrixInverse(nullptr, XMLoadFloat4x4(&object.world))));
@@ -686,8 +729,14 @@ struct Renderer::Impl {
             data.options = {object.grid ? 1.0f : 0.0f, static_cast<float>(object.surface), object.alphaCutoff, object.normalStrength};
             data.uvTransform = {object.uvScale.x, object.uvScale.y, object.uvOffset.x, object.uvOffset.y};
             data.emission = {object.emission.x, object.emission.y, object.emission.z, object.emissionStrength};
-            std::memcpy(slot.mapped + frameDataSize + index * objectStride, &data, sizeof(data));
-        }
+            std::memcpy(slot.mapped + frameDataSize + static_cast<std::size_t>(destination) * objectStride, &data, sizeof(data));
+        };
+        for (UINT index = 0; index < shadowPlan.instances.size(); ++index) { writeInstance(index, shadowPlan.instances[index].object); }
+        for (UINT index = 0; index < cameraPlan.instances.size(); ++index) { writeInstance(shadowCount + index, cameraPlan.instances[index].object); }
+        statistics.uploadedInstances = shadowCount + static_cast<UINT>(cameraPlan.instances.size());
+        statistics.cameraDraws = statistics.shadowDraws = 0;
+        statistics.culledObjects = static_cast<UINT>(frame.objects.size() - cameraPlan.instances.size());
+        statistics.visibleObjects = static_cast<UINT>(cameraPlan.instances.size());
         check(slot.allocator->Reset(), "Reset frame allocator");
         check(commands->Reset(slot.allocator.Get(), nullptr), "Reset frame commands");
         ID3D12DescriptorHeap* heaps[] = {srvHeap.Get()};
@@ -695,21 +744,25 @@ struct Renderer::Impl {
         commands->SetGraphicsRootSignature(rootSignature.Get());
         commands->SetGraphicsRootConstantBufferView(0, slot.upload->GetGPUVirtualAddress());
         commands->SetGraphicsRootDescriptorTable(2, srvGpu(1));
+        commands->SetGraphicsRootShaderResourceView(4, slot.upload->GetGPUVirtualAddress() + frameDataSize);
         commands->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
         commands->EndQuery(queries.Get(), D3D12_QUERY_TYPE_TIMESTAMP, slotIndex * 2);
-        statistics.drawCalls = statistics.triangles = statistics.visibleObjects = 0;
-        const auto drawObject = [&](std::size_t index) {
-            const auto found = meshes.find(frame.objects[index].mesh);
+        statistics.drawCalls = statistics.triangles = 0;
+        const auto drawBatch = [&](const DrawBatches& plan, const DrawBatch& batch, UINT instanceOffset) {
+            const auto& instance = plan.instances[batch.first];
+            const auto& object = frame.objects[instance.object];
+            const auto found = meshes.find(object.mesh);
             const auto fallback = meshes.find("cube");
             if (found == meshes.end() && fallback == meshes.end()) { return; }
             const auto& mesh = found != meshes.end() ? found->second : fallback->second;
-            commands->SetGraphicsRootDescriptorTable(3, srvGpu(materialTable(frame.objects[index])));
-            commands->SetGraphicsRootConstantBufferView(1, slot.upload->GetGPUVirtualAddress() + frameDataSize + index * objectStride);
+            commands->SetGraphicsRootDescriptorTable(3, srvGpu(materialTable(object)));
+            commands->SetGraphicsRoot32BitConstant(1, instanceOffset + batch.first, 0);
             commands->IASetVertexBuffers(0, 1, &mesh.vertexView);
-            commands->IASetIndexBuffer(&mesh.indexView);
-            commands->DrawIndexedInstanced(mesh.indexCount, 1, 0, 0, 0);
+            const auto& level = mesh.levels[instance.lod];
+            commands->IASetIndexBuffer(&level.view);
+            commands->DrawIndexedInstanced(level.count, batch.count, 0, 0, 0);
             ++statistics.drawCalls;
-            statistics.triangles += mesh.indexCount / 3;
+            statistics.triangles += level.count / 3 * batch.count;
         };
         if (frame.shadows) {
             auto barrier = transition(shadow.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_DEPTH_WRITE);
@@ -722,8 +775,9 @@ struct Renderer::Impl {
             commands->OMSetRenderTargets(0, nullptr, FALSE, &depthHandle);
             commands->ClearDepthStencilView(depthHandle, D3D12_CLEAR_FLAG_DEPTH, 1, 0, 0, nullptr);
             commands->SetPipelineState(shadowPipeline.Get());
-            for (std::size_t index = 0; index < frame.objects.size(); ++index) {
-                if (frame.objects[index].castShadow && !frame.objects[index].unlit && frame.objects[index].surface != SurfaceMode::Transparent) { drawObject(index); }
+            for (const auto& batch : shadowPlan.batches) {
+                drawBatch(shadowPlan, batch, 0);
+                ++statistics.shadowDraws;
             }
             barrier = transition(shadow.Get(), D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
             commands->ResourceBarrier(1, &barrier);
@@ -743,42 +797,12 @@ struct Renderer::Impl {
         commands->SetPipelineState(backgroundPipeline.Get());
         commands->DrawInstanced(3, 1, 0, 0);
         commands->SetPipelineState(frame.wireframe ? wirePipeline.Get() : litPipeline.Get());
-        BoundingFrustum localFrustum;
-        BoundingFrustum worldFrustum;
-        if (!frame.camera.orthographic) {
-            BoundingFrustum::CreateFromMatrix(localFrustum, frame.camera.projection(), true);
-            localFrustum.Transform(worldFrustum, XMMatrixInverse(nullptr, frame.camera.view()));
-        }
-        std::vector<std::size_t> visible;
-        visible.reserve(frame.objects.size());
-        for (std::size_t index = 0; index < frame.objects.size(); ++index) {
-            const auto& object = frame.objects[index];
-            const auto found = meshes.find(object.mesh);
-            if (!frame.camera.orthographic && found != meshes.end()) {
-                BoundingBox worldBounds;
-                found->second.bounds.Transform(worldBounds, XMLoadFloat4x4(&object.world));
-                if (worldFrustum.Contains(worldBounds) == DISJOINT) { continue; }
-            }
-            visible.push_back(index);
-        }
-        std::stable_sort(visible.begin(), visible.end(), [&](std::size_t left, std::size_t right) {
-            const auto& first = frame.objects[left];
-            const auto& second = frame.objects[right];
-            const bool firstTransparent = first.surface == SurfaceMode::Transparent;
-            const bool secondTransparent = second.surface == SurfaceMode::Transparent;
-            if (firstTransparent != secondTransparent) { return !firstTransparent; }
-            if (!firstTransparent) { return false; }
-            const auto eye = frame.camera.eye();
-            const auto firstDistance = XMVectorGetX(XMVector3LengthSq(XMVectorSubtract(XMLoadFloat4x4(&first.world).r[3], eye)));
-            const auto secondDistance = XMVectorGetX(XMVector3LengthSq(XMVectorSubtract(XMLoadFloat4x4(&second.world).r[3], eye)));
-            return firstDistance > secondDistance;
-        });
-        for (const auto index : visible) {
-            const auto& object = frame.objects[index];
+        for (const auto& batch : cameraPlan.batches) {
+            const auto& object = frame.objects[cameraPlan.instances[batch.first].object];
             const auto pipeline = (object.surface == SurfaceMode::Transparent ? 2u : 0u) + (object.doubleSided ? 1u : 0u);
             commands->SetPipelineState(frame.wireframe ? wirePipeline.Get() : surfacePipelines[pipeline].Get());
-            drawObject(index);
-            ++statistics.visibleObjects;
+            drawBatch(cameraPlan, batch, shadowCount);
+            ++statistics.cameraDraws;
         }
         colorBarrier = transition(sceneColor.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
         commands->ResourceBarrier(1, &colorBarrier);
@@ -909,11 +933,15 @@ void Renderer::setShadowResolution(std::uint32_t size) {
 
 std::uint64_t Renderer::sceneTexture() const { return impl_->srvGpu(0).ptr; }
 
-void Renderer::addMesh(const std::string& key, const MeshData& data) {
+void Renderer::addMesh(const std::string& key, const MeshData& source) {
     if (impl_->meshes.contains(key)) { return; }
+    auto optimized = source;
+    if (optimized.lods.empty()) { optimizeMesh(optimized); }
+    const auto& data = optimized;
     if (data.vertices.empty() || data.indices.empty()) { throw std::runtime_error("Cannot upload empty mesh."); }
     const auto vertexBytes = data.vertices.size() * sizeof(Vertex);
-    const auto indexBytes = data.indices.size() * sizeof(std::uint32_t);
+    auto indexBytes = data.indices.size() * sizeof(std::uint32_t);
+    for (const auto& level : data.lods) { indexBytes += level.size() * sizeof(std::uint32_t); }
     if (vertexBytes + indexBytes > 64 * 1024 * 1024 || impl_->statistics.meshBytes + vertexBytes + indexBytes > 256 * 1024 * 1024) {
         throw std::runtime_error("Mesh GPU budget exceeded (256 MB preview limit).");
     }
@@ -925,7 +953,12 @@ void Renderer::addMesh(const std::string& key, const MeshData& data) {
     const D3D12_RANGE noRead{0, 0};
     check(staging->Map(0, &noRead, reinterpret_cast<void**>(&mapped)), "Map mesh upload");
     std::memcpy(mapped, data.vertices.data(), vertexBytes);
-    std::memcpy(mapped + vertexBytes, data.indices.data(), indexBytes);
+    std::memcpy(mapped + vertexBytes, data.indices.data(), data.indices.size() * sizeof(std::uint32_t));
+    auto offset = data.indices.size() * sizeof(std::uint32_t);
+    for (const auto& level : data.lods) {
+        std::memcpy(mapped + vertexBytes + offset, level.data(), level.size() * sizeof(std::uint32_t));
+        offset += level.size() * sizeof(std::uint32_t);
+    }
     staging->Unmap(0, nullptr);
     impl_->immediate([&](ID3D12GraphicsCommandList* commands) {
         commands->CopyBufferRegion(mesh.vertices.Get(), 0, staging.Get(), 0, vertexBytes);
@@ -937,8 +970,15 @@ void Renderer::addMesh(const std::string& key, const MeshData& data) {
         commands->ResourceBarrier(static_cast<UINT>(barriers.size()), barriers.data());
     });
     mesh.vertexView = {mesh.vertices->GetGPUVirtualAddress(), static_cast<UINT>(vertexBytes), sizeof(Vertex)};
-    mesh.indexView = {mesh.indices->GetGPUVirtualAddress(), static_cast<UINT>(indexBytes), DXGI_FORMAT_R32_UINT};
+    mesh.indexView = {mesh.indices->GetGPUVirtualAddress(), static_cast<UINT>(data.indices.size() * sizeof(std::uint32_t)), DXGI_FORMAT_R32_UINT};
     mesh.indexCount = static_cast<UINT>(data.indices.size());
+    mesh.levels.push_back({mesh.indexView, mesh.indexCount});
+    offset = data.indices.size() * sizeof(std::uint32_t);
+    for (const auto& level : data.lods) {
+        mesh.levels.push_back({{mesh.indices->GetGPUVirtualAddress() + offset,
+            static_cast<UINT>(level.size() * sizeof(std::uint32_t)), DXGI_FORMAT_R32_UINT}, static_cast<UINT>(level.size())});
+        offset += level.size() * sizeof(std::uint32_t);
+    }
     mesh.bounds = data.bounds;
     mesh.vertices->SetName(wide(key + " vertices").c_str());
     mesh.indices->SetName(wide(key + " indices").c_str());

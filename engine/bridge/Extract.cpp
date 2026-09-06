@@ -3,6 +3,10 @@
 namespace velos {
 
 void extractScene(const Scene& scene, RenderFrame& frame, EntityId selected, bool grid) {
+    if (frame.sourceRevision == scene.revision() && frame.selectedSource == selected && frame.sourceGrid == grid) { return; }
+    frame.sourceRevision = scene.revision();
+    frame.selectedSource = selected;
+    frame.sourceGrid = grid;
     frame.objects.clear();
     frame.lightCount = 0;
     frame.ambient = scene.ambient;

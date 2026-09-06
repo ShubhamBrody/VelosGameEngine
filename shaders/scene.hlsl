@@ -13,7 +13,7 @@ cbuffer FrameData : register(b0) {
     PointLight pointLights[8];
 };
 
-cbuffer ObjectData : register(b1) {
+struct InstanceData {
     row_major float4x4 world;
     row_major float4x4 normalWorld;
     float4 baseColor;
@@ -21,7 +21,13 @@ cbuffer ObjectData : register(b1) {
     float4 objectOptions;
     float4 uvTransform;
     float4 emissionColorStrength;
+    float4 padding0;
+    float4 padding1;
+    float4 padding2;
 };
+
+cbuffer DrawData : register(b1) { uint firstInstance; };
+StructuredBuffer<InstanceData> instances : register(t5);
 
 Texture2D<float> shadowMap : register(t0);
 SamplerComparisonState shadowSampler : register(s0);
@@ -42,29 +48,34 @@ struct VertexOutput {
     float3 worldPosition : TEXCOORD0;
     float3 normal : TEXCOORD1;
     float2 uv : TEXCOORD2;
+    nointerpolation uint instance : TEXCOORD3;
 };
 
-VertexOutput VSMain(VertexInput input) {
+VertexOutput VSMain(VertexInput input, uint instanceId : SV_InstanceID) {
     VertexOutput output;
-    float4 worldPosition = mul(float4(input.position, 1), world);
+    uint index = firstInstance + instanceId;
+    InstanceData data = instances[index];
+    float4 worldPosition = mul(float4(input.position, 1), data.world);
     output.position = mul(worldPosition, viewProjection);
     output.worldPosition = worldPosition.xyz;
-    output.normal = mul(float4(input.normal, 0), normalWorld).xyz;
-    output.uv = input.uv * uvTransform.xy + uvTransform.zw;
+    output.normal = mul(float4(input.normal, 0), data.normalWorld).xyz;
+    output.uv = input.uv * data.uvTransform.xy + data.uvTransform.zw;
+    output.instance = index;
     return output;
 }
 
-VertexOutput VSShadow(VertexInput input) {
-    VertexOutput output = VSMain(input);
+VertexOutput VSShadow(VertexInput input, uint instanceId : SV_InstanceID) {
+    VertexOutput output = VSMain(input, instanceId);
     output.position = mul(float4(output.worldPosition, 1), lightViewProjection);
     return output;
 }
 
 void PSShadow(VertexOutput input) {
-    if (objectOptions.y > 0.5) { clip(albedoMap.Sample(materialSampler, input.uv).a * baseColor.a - objectOptions.z); }
+    InstanceData data = instances[input.instance];
+    if (data.objectOptions.y > 0.5) { clip(albedoMap.Sample(materialSampler, input.uv).a * data.baseColor.a - data.objectOptions.z); }
 }
 
-float3 mappedNormal(VertexOutput input) {
+float3 mappedNormal(VertexOutput input, float normalStrength) {
     float3 normal = normalize(input.normal);
     float3 positionX = ddx(input.worldPosition);
     float3 positionY = ddy(input.worldPosition);
@@ -80,7 +91,7 @@ float3 mappedNormal(VertexOutput input) {
     float3 bitangent = normalize(cross(normal, tangent));
     float3 sourceBitangent = (-positionX * uvY.x + positionY * uvX.x) / determinant;
     bitangent *= dot(bitangent, sourceBitangent) < 0 ? -1 : 1;
-    float2 normalXY = (normalMap.Sample(materialSampler, input.uv).xy * 2 - 1) * objectOptions.w;
+    float2 normalXY = (normalMap.Sample(materialSampler, input.uv).xy * 2 - 1) * normalStrength;
     float normalZ = sqrt(saturate(1 - dot(normalXY, normalXY)));
     return normalize(tangent * normalXY.x + bitangent * normalXY.y + normal * normalZ);
 }
@@ -131,10 +142,15 @@ float3 tonemap(float3 color) {
 }
 
 float4 PSMain(VertexOutput input) : SV_TARGET {
+    InstanceData data = instances[input.instance];
+    float4 baseColor = data.baseColor;
+    float4 material = data.material;
+    float4 objectOptions = data.objectOptions;
+    float4 emissionColorStrength = data.emissionColorStrength;
     float4 sampledAlbedo = albedoMap.Sample(materialSampler, input.uv);
     float opacity = sampledAlbedo.a * baseColor.a;
     if (objectOptions.y > 0.5 && objectOptions.y < 1.5) { clip(opacity - objectOptions.z); }
-    float3 normal = mappedNormal(input);
+    float3 normal = mappedNormal(input, objectOptions.w);
     float3 albedo = pow(saturate(baseColor.rgb), 2.2) * sampledAlbedo.rgb;
     float3 orm = ormMap.Sample(materialSampler, input.uv).rgb;
     float roughness = clamp(material.x * orm.g, 0.04, 1);

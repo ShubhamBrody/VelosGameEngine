@@ -22,6 +22,7 @@ static_assert(sizeof(Vertex) == 32);
 struct MeshData {
     std::vector<Vertex> vertices;
     std::vector<std::uint32_t> indices;
+    std::vector<std::vector<std::uint32_t>> lods;
     DirectX::BoundingBox bounds;
     void updateBounds();
 };
@@ -29,6 +30,7 @@ struct MeshData {
 MeshData makeCube();
 MeshData makeSphere();
 MeshData makePlane(bool vertical = false);
+void optimizeMesh(MeshData& mesh);
 MeshData decodeGlb(std::span<const std::byte> bytes);
 MeshData loadGlb(std::span<const std::byte> source, DiskCache& cache);
 MeshData loadGlb(const std::filesystem::path& path, DiskCache& cache);

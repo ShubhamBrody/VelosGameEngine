@@ -284,9 +284,13 @@ void Editor::draw(double elapsed) {
         changed_ = true;
     }
     if (changed_) { scene_.touch(); }
-    if (!playing_ && !ImGui::IsAnyItemActive() && !gizmoActive_) { history_.commit(scene_, "Scene edit"); }
+    if (!playing_ && !ImGui::IsAnyItemActive() && !gizmoActive_) { history_.commit(scene_, "Scene edit", changed_); }
     extractScene(scene_, frame_, selected_, grid_);
-    const auto title = L"Velos | " + wide(scene_.name) + (scene_.serialize() != savedState_ && !playing_ ? L" *" : L"");
+    if (dirtyRevision_ != scene_.revision() && !playing_) {
+        dirty_ = scene_.serialize() != savedState_;
+        dirtyRevision_ = scene_.revision();
+    }
+    const auto title = L"Velos | " + wide(scene_.name) + (dirty_ && !playing_ ? L" *" : L"");
     SetWindowTextW(window_, title.c_str());
 }
 
@@ -699,6 +703,13 @@ void Editor::diagnostics() {
         ImGui::TextUnformatted(statistics.adapter.c_str());
         ImGui::Text("GPU scene %.2f ms  |  %u draws  |  %u triangles  |  %u visible", statistics.gpuMilliseconds,
             statistics.drawCalls, statistics.triangles, statistics.visibleObjects);
+        ImGui::Text("Camera/shadow draws %u / %u | Frustum culled %u | LOD triangles saved %u", statistics.cameraDraws,
+            statistics.shadowDraws, statistics.culledObjects, statistics.lodTrianglesSaved);
+        ImGui::Checkbox("Instance batching", &frame_.instancing);
+        ImGui::SameLine();
+        ImGui::Checkbox("Mesh LODs", &frame_.lods);
+        ImGui::SetNextItemWidth(180);
+        ImGui::SliderFloat("LOD quality bias", &frame_.lodBias, 0.25f, 3, "%.2f");
         ImGui::Text("GPU memory %.1f / %.1f MB  |  Undo %.1f KB", static_cast<double>(statistics.gpuUsage) / 1048576,
             static_cast<double>(statistics.gpuBudget) / 1048576, static_cast<double>(history_.bytes()) / 1024);
         const auto cache = renderer_.shaderCacheStats();
@@ -839,6 +850,8 @@ bool Editor::saveScene(bool choosePath) {
         writeTextAtomic(destination, state);
         scenePath_ = destination;
         savedState_ = state;
+        dirty_ = false;
+        dirtyRevision_ = scene_.revision();
         autosaveSeconds_ = 0;
         log("Saved " + utf8(destination.filename().native()));
         return true;

@@ -3,14 +3,25 @@
 namespace velos {
 
 void History::begin(const Scene& scene) {
-    if (!pending_) { pending_ = scene.serialize(); }
+    if (pending_) { return; }
+    if (!snapshot_ || snapshotRevision_ != scene.revision()) {
+        snapshot_ = std::make_shared<const std::string>(scene.serialize());
+        snapshotRevision_ = scene.revision();
+        ++serializations_;
+    }
+    pending_ = snapshot_;
+    pendingRevision_ = scene.revision();
 }
 
-void History::commit(const Scene& scene, std::string label) {
+void History::commit(const Scene& scene, std::string label, bool mayHaveChanged) {
     if (!pending_) { return; }
-    auto before = std::move(*pending_);
+    if (!mayHaveChanged && pendingRevision_ == scene.revision()) { pending_.reset(); return; }
+    auto before = *pending_;
     pending_.reset();
     auto after = scene.serialize();
+    ++serializations_;
+    snapshot_ = std::make_shared<const std::string>(after);
+    snapshotRevision_ = scene.revision();
     if (before == after) { return; }
     while (commands_.size() > cursor_) {
         bytes_ -= commands_.back().before.size() + commands_.back().after.size();
@@ -49,6 +60,8 @@ void History::clear() {
     pending_.reset();
     cursor_ = 0;
     bytes_ = 0;
+    snapshot_.reset();
+    snapshotRevision_ = 0;
 }
 
 }

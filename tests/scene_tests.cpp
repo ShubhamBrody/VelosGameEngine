@@ -86,6 +86,9 @@ void testHistory() {
     scene.addPrimitive("cube");
     tiny.commit(scene, "Over budget");
     require(tiny.bytes() <= 16 && !tiny.canUndo(), "History must respect its byte budget.");
+    velos::History idle;
+    for (int frame = 0; frame < 600; ++frame) { idle.begin(scene); idle.commit(scene, "Idle", false); }
+    require(idle.serializationCount() == 1 && !idle.canUndo(), "Unchanged editor frames must reuse their snapshot.");
 }
 
 void testMaterials() {

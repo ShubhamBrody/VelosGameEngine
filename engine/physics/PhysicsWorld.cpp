@@ -149,16 +149,20 @@ void PhysicsWorld::step(Scene& scene, float seconds) {
     const auto result = impl_->physics.Update(seconds, 1, &impl_->temporary, &impl_->jobs);
     if (result != JPH::EPhysicsUpdateError::None) { throw std::runtime_error("Physics capacity exceeded; reduce active bodies/contacts."); }
     const auto& bodies = impl_->physics.GetBodyInterface();
+    bool moved = false;
     for (const auto& record : impl_->bodies) {
         if (!record.dynamic || !scene.contains(record.entity)) { continue; }
         JPH::RVec3 position;
         JPH::Quat rotation;
         bodies.GetPositionAndRotation(record.body, position, rotation);
         auto& transform = *scene.get<Transform>(record.entity);
+        moved |= transform.position.x != position.GetX() || transform.position.y != position.GetY() || transform.position.z != position.GetZ()
+            || transform.rotation.x != rotation.GetX() || transform.rotation.y != rotation.GetY()
+            || transform.rotation.z != rotation.GetZ() || transform.rotation.w != rotation.GetW();
         transform.position = {position.GetX(), position.GetY(), position.GetZ()};
         transform.rotation = {rotation.GetX(), rotation.GetY(), rotation.GetZ(), rotation.GetW()};
     }
-    scene.touch();
+    if (moved) { scene.touch(); }
 }
 
 bool PhysicsWorld::setPlanarVelocity(EntityId id, float horizontal, float forward) {

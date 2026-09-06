@@ -3,6 +3,7 @@
 
 #define CGLTF_IMPLEMENTATION
 #include <cgltf.h>
+#include <meshoptimizer.h>
 
 #include <algorithm>
 #include <array>
@@ -17,6 +18,33 @@ using namespace DirectX;
 void MeshData::updateBounds() {
     if (vertices.empty()) { throw std::runtime_error("Mesh contains no vertices."); }
     BoundingBox::CreateFromPoints(bounds, vertices.size(), &vertices.front().position, sizeof(Vertex));
+}
+
+void optimizeMesh(MeshData& mesh) {
+    if (mesh.vertices.empty() || mesh.indices.empty() || mesh.indices.size() % 3 != 0) { throw std::runtime_error("Cannot optimize invalid mesh geometry."); }
+    for (const auto index : mesh.indices) {
+        if (index >= mesh.vertices.size()) { throw std::runtime_error("Mesh index exceeds its vertex buffer."); }
+    }
+    mesh.lods.clear();
+    meshopt_optimizeVertexCache(mesh.indices.data(), mesh.indices.data(), mesh.indices.size(), mesh.vertices.size());
+    const auto vertexCount = meshopt_optimizeVertexFetch(mesh.vertices.data(), mesh.indices.data(), mesh.indices.size(),
+        mesh.vertices.data(), mesh.vertices.size(), sizeof(Vertex));
+    mesh.vertices.resize(vertexCount);
+    if (mesh.indices.size() >= 384) {
+        auto previous = mesh.indices;
+        for (int level = 0; level < 2; ++level) {
+            const auto target = std::max<std::size_t>(12, (previous.size() / 2) / 3 * 3);
+            std::vector<std::uint32_t> simplified(previous.size());
+            const auto count = meshopt_simplify(simplified.data(), previous.data(), previous.size(), &mesh.vertices[0].position.x,
+                mesh.vertices.size(), sizeof(Vertex), target, 0.02f, 0, nullptr);
+            if (count == 0 || count >= previous.size()) { break; }
+            simplified.resize(count);
+            meshopt_optimizeVertexCache(simplified.data(), simplified.data(), simplified.size(), mesh.vertices.size());
+            mesh.lods.push_back(simplified);
+            previous = std::move(simplified);
+        }
+    }
+    mesh.updateBounds();
 }
 
 MeshData makeCube() {
@@ -182,32 +210,55 @@ MeshData decodeGlb(std::span<const std::byte> bytes) {
 }
 
 MeshData loadGlb(std::span<const std::byte> source, DiskCache& cache) {
-    const auto key = sha256("velos-static-glb-v1:" + sha256(source));
-    struct Header { std::uint32_t version; std::uint32_t vertices; std::uint32_t indices; };
+    const auto key = sha256("velos-static-glb-v2-meshopt-c645e49:" + sha256(source));
+    struct Header { std::uint32_t version; std::uint32_t vertices; std::uint32_t indices; std::array<std::uint32_t, 2> lods; };
     if (const auto cached = cache.get(key); cached && cached->size() >= sizeof(Header)) {
         Header header{};
         std::memcpy(&header, cached->data(), sizeof(header));
         const std::uint64_t expected = sizeof(Header) + static_cast<std::uint64_t>(header.vertices) * sizeof(Vertex)
-            + static_cast<std::uint64_t>(header.indices) * sizeof(std::uint32_t);
-        if (header.version == 1 && header.vertices > 0 && header.vertices <= 1000000
-            && header.indices > 0 && header.indices <= 3000000 && expected == cached->size()) {
+            + (static_cast<std::uint64_t>(header.indices) + header.lods[0] + header.lods[1]) * sizeof(std::uint32_t);
+        if (header.version == 2 && header.vertices > 0 && header.vertices <= 1000000
+            && header.indices > 0 && header.indices <= 3000000 && header.indices % 3 == 0
+            && header.lods[0] <= header.indices && header.lods[1] <= header.lods[0]
+            && header.lods[0] % 3 == 0 && header.lods[1] % 3 == 0 && expected == cached->size()) {
             MeshData mesh;
             mesh.vertices.resize(header.vertices);
             mesh.indices.resize(header.indices);
             std::memcpy(mesh.vertices.data(), cached->data() + sizeof(Header), mesh.vertices.size() * sizeof(Vertex));
             std::memcpy(mesh.indices.data(), cached->data() + sizeof(Header) + mesh.vertices.size() * sizeof(Vertex), mesh.indices.size() * sizeof(std::uint32_t));
-            if (std::all_of(mesh.indices.begin(), mesh.indices.end(), [&](auto index) { return index < mesh.vertices.size(); })) {
+            auto offset = sizeof(Header) + mesh.vertices.size() * sizeof(Vertex) + mesh.indices.size() * sizeof(std::uint32_t);
+            bool valid = std::all_of(mesh.indices.begin(), mesh.indices.end(), [&](auto index) { return index < mesh.vertices.size(); });
+            for (const auto count : header.lods) {
+                if (count == 0) { continue; }
+                std::vector<std::uint32_t> indices(count);
+                std::memcpy(indices.data(), cached->data() + offset, count * sizeof(std::uint32_t));
+                offset += count * sizeof(std::uint32_t);
+                valid &= std::all_of(indices.begin(), indices.end(), [&](auto index) { return index < mesh.vertices.size(); });
+                mesh.lods.push_back(std::move(indices));
+            }
+            if (valid) {
                 mesh.updateBounds();
                 return mesh;
             }
         }
     }
     auto mesh = decodeGlb(source);
-    const Header header{1, static_cast<std::uint32_t>(mesh.vertices.size()), static_cast<std::uint32_t>(mesh.indices.size())};
-    std::vector<std::byte> cooked(sizeof(Header) + mesh.vertices.size() * sizeof(Vertex) + mesh.indices.size() * sizeof(std::uint32_t));
+    optimizeMesh(mesh);
+    Header header{2, static_cast<std::uint32_t>(mesh.vertices.size()), static_cast<std::uint32_t>(mesh.indices.size()), {0,0}};
+    std::size_t lodBytes = 0;
+    for (std::size_t level = 0; level < mesh.lods.size(); ++level) {
+        header.lods[level] = static_cast<std::uint32_t>(mesh.lods[level].size());
+        lodBytes += mesh.lods[level].size() * sizeof(std::uint32_t);
+    }
+    std::vector<std::byte> cooked(sizeof(Header) + mesh.vertices.size() * sizeof(Vertex) + mesh.indices.size() * sizeof(std::uint32_t) + lodBytes);
     std::memcpy(cooked.data(), &header, sizeof(header));
     std::memcpy(cooked.data() + sizeof(header), mesh.vertices.data(), mesh.vertices.size() * sizeof(Vertex));
     std::memcpy(cooked.data() + sizeof(header) + mesh.vertices.size() * sizeof(Vertex), mesh.indices.data(), mesh.indices.size() * sizeof(std::uint32_t));
+    auto offset = sizeof(Header) + mesh.vertices.size() * sizeof(Vertex) + mesh.indices.size() * sizeof(std::uint32_t);
+    for (const auto& level : mesh.lods) {
+        std::memcpy(cooked.data() + offset, level.data(), level.size() * sizeof(std::uint32_t));
+        offset += level.size() * sizeof(std::uint32_t);
+    }
     static_cast<void>(cache.put(key, cooked));
     return mesh;
 }

@@ -5,6 +5,7 @@
 #include "platform/Files.h"
 #include "platform/Window.h"
 #include "rhi/d3d12/Renderer.h"
+#include "render/FrameMetrics.h"
 
 #include <objbase.h>
 #include <chrono>
@@ -15,6 +16,10 @@ int main(int argc, char** argv) {
     std::filesystem::path package;
     std::filesystem::path output;
     std::filesystem::path capture;
+    std::filesystem::path report;
+    std::uint32_t stressCount = 0;
+    bool instancing = true;
+    bool lods = true;
     std::string adapter = "auto";
     int frameLimit = 0;
     bool debug = false;
@@ -32,6 +37,10 @@ int main(int argc, char** argv) {
         else if (argument.starts_with("--frames=")) { frameLimit = std::stoi(argument.substr(9)); }
         else if (argument == "--debug-gpu") { debug = true; }
         else if (argument == "--no-debug-gpu") { debug = false; }
+        else if (argument == "--no-instancing") { instancing = false; }
+        else if (argument == "--no-lods") { lods = false; }
+        else if (argument.starts_with("--stress=")) { stressCount = static_cast<std::uint32_t>(std::stoul(argument.substr(9))); }
+        else if (argument.starts_with("--report=")) { report = velos::wide(argument.substr(9)); }
     }
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
     if (FAILED(CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED))) { return 1; }
@@ -53,6 +62,7 @@ int main(int argc, char** argv) {
         } else if (explicitScene) {
             throw std::runtime_error("The requested scene does not exist.");
         }
+        if (stressCount != 0) { scene = velos::Scene::stress(stressCount); }
         velos::Window window(velos::wide(scene.name) + L" | Velos", 1280, 800);
         if (frameLimit == 0) { FreeConsole(); }
         velos::Renderer renderer(window.handle(), adapter, debug);
@@ -79,6 +89,9 @@ int main(int argc, char** argv) {
         physics.start(scene);
         velos::FixedStepClock clock;
         velos::RenderFrame frame;
+        frame.instancing = instancing;
+        frame.lods = lods;
+        velos::FrameMetrics metrics;
         frame.camera.set2D(scene.twoDimensional);
         frame.objects.reserve(scene.entities().size());
         window.inputHandler = [&](HWND, UINT message, WPARAM wparam, LPARAM) -> LRESULT {
@@ -90,6 +103,7 @@ int main(int argc, char** argv) {
         GetCursorPos(&previousCursor);
         int frameIndex = 0;
         while (!window.closeRequested) {
+            const auto frameStarted = std::chrono::steady_clock::now();
             window.pump();
             if (window.minimized()) { WaitMessage(); previous = std::chrono::steady_clock::now(); continue; }
             const auto now = std::chrono::steady_clock::now();
@@ -113,6 +127,9 @@ int main(int argc, char** argv) {
             frame.camera.aspect = static_cast<float>(window.width()) / static_cast<float>(window.height());
             velos::extractScene(scene, frame, 0, true);
             renderer.render(frame, nullptr, frameLimit == 0);
+            if (!report.empty() && frameIndex >= 30) {
+                metrics.add(std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - frameStarted).count(), renderer.stats().gpuMilliseconds);
+            }
             ++frameIndex;
             if (frameLimit > 0 && frameIndex >= frameLimit) { break; }
         }
@@ -121,6 +138,9 @@ int main(int argc, char** argv) {
         const auto errors = renderer.validationErrors();
         if (!errors.empty()) { std::cerr << errors; result = 2; }
         const auto statistics = renderer.stats();
+        if (!report.empty()) { velos::writeTextAtomic(report, metrics.report(statistics, instancing, lods).dump(2)); }
+        std::cout << "Camera draws: " << statistics.cameraDraws << " | Shadow draws: " << statistics.shadowDraws
+            << " | LOD triangles saved: " << statistics.lodTrianglesSaved << '\n';
         std::cout << "Runtime adapter: " << statistics.adapter << "\nFrames: " << frameIndex
             << "\nGPU scene: " << statistics.gpuMilliseconds << " ms\nD3D12 validation: "
             << (!statistics.debugLayer ? "not available" : errors.empty() ? "PASS" : "FAIL") << '\n';

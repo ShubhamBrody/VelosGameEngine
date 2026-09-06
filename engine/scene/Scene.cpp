@@ -393,7 +393,7 @@ bool Scene::deserialize(std::string_view text, std::string& error) {
                 ancestor = candidate.get<Transform>(ancestor)->parent;
             }
         }
-        candidate.revision_ = revision_ + 1;
+        candidate.touch();
         *this = std::move(candidate);
         error.clear();
         return true;
@@ -443,6 +443,27 @@ Scene Scene::demo() {
     point.intensity = 18;
     scene.set<Light>(fill, point);
     scene.get<Transform>(fill)->position = {3, 3, -2};
+    scene.touch();
+    return scene;
+}
+
+Scene Scene::stress(std::uint32_t count) {
+    if (count == 0 || count > 9000) { throw std::invalid_argument("Stress scene requires 1-9000 objects."); }
+    Scene scene;
+    scene.name = "Batching and LOD benchmark";
+    const auto floor = scene.addPrimitive("plane", "Floor");
+    scene.get<Transform>(floor)->scale = {80,1,80};
+    scene.get<MeshRenderer>(floor)->color = {0.25f,0.28f,0.3f,1};
+    const auto columns = static_cast<std::uint32_t>(std::ceil(std::sqrt(static_cast<double>(count))));
+    for (std::uint32_t index = 0; index < count; ++index) {
+        const auto id = scene.addPrimitive(index % 4 == 0 ? "sphere" : "cube", "Instance " + std::to_string(index));
+        scene.get<Transform>(id)->position = {(static_cast<float>(index % columns) - static_cast<float>(columns) * 0.5f) * 1.3f,
+            0.5f, -static_cast<float>(index / columns) * 1.3f};
+        auto* material = scene.get<MeshRenderer>(id);
+        material->color = index % 2 == 0 ? XMFLOAT4{0.23f,0.73f,0.58f,1} : XMFLOAT4{0.87f,0.41f,0.27f,1};
+    }
+    const auto sun = scene.create("Sun");
+    scene.set<Light>(sun, {LightKind::Directional});
     scene.touch();
     return scene;
 }
