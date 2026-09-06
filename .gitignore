@@ -1,0 +1,88 @@
+# ---- Build output ----
+/build/
+/out/
+/bin/
+/obj/
+/_deps/
+*.dir/
+CMakeCache.txt
+CMakeFiles/
+CMakeUserPresets.json
+cmake_install.cmake
+compile_commands.json
+
+# ---- Visual Studio / MSVC ----
+.vs/
+*.sln.docstates
+*.vcxproj.user
+*.suo
+*.user
+*.aps
+*.pch
+*.pdb
+*.idb
+*.ilk
+*.exp
+*.lib
+*.tlog
+*.log
+*.opendb
+*.VC.db
+*.VC.opendb
+
+# ---- Rider / CLion / VSCode ----
+.idea/
+cmake-build-*/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
+
+# ---- .NET (scripting layer, tools) ----
+[Bb]in/
+[Oo]bj/
+*.nupkg
+project.lock.json
+artifacts/
+
+# ---- Engine-generated caches (never commit) ----
+/.velos/
+**/Cache/
+**/DerivedData/
+*.pso.cache
+*.shadercache
+*.aicache
+*.ddc
+
+# ---- Cooked / packaged content ----
+/dist/
+/packaged/
+*.vpak
+
+# ---- Profiling captures ----
+*.rdc
+*.nsight-gpudump
+*.pix
+*.trace
+*.speedscope.json
+
+# ---- Secrets ----
+.env
+.env.*
+!.env.example
+secrets.json
+*.key
+*.pem
+ai_credentials*.json
+
+# ---- OS noise ----
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# ---- Large binaries: use Git LFS instead ----
+*.exe
+*.dll
+*.so
+*.dylib
