@@ -1,18 +1,22 @@
 #include "platform/Window.h"
+#include "platform/BrandResources.h"
 
 #include <algorithm>
 #include <stdexcept>
 
 namespace velos {
 
-Window::Window(const std::wstring& title, int width, int height) {
+Window::Window(const std::wstring& title, int width, int height, bool showInitially) {
     const auto instance = GetModuleHandleW(nullptr);
     WNDCLASSEXW windowClass{sizeof(WNDCLASSEXW)};
     windowClass.style = CS_HREDRAW | CS_VREDRAW;
     windowClass.lpfnWndProc = procedure;
     windowClass.hInstance = instance;
     windowClass.hCursor = LoadCursorW(nullptr, IDC_ARROW);
-    windowClass.hIcon = LoadIconW(nullptr, IDI_APPLICATION);
+    windowClass.hIcon = LoadIconW(instance,MAKEINTRESOURCEW(VELOS_BRAND_ICON));
+    if (!windowClass.hIcon) { windowClass.hIcon = LoadIconW(nullptr,IDI_APPLICATION); }
+    windowClass.hIconSm = static_cast<HICON>(LoadImageW(instance,MAKEINTRESOURCEW(VELOS_BRAND_ICON),IMAGE_ICON,
+        GetSystemMetrics(SM_CXSMICON),GetSystemMetrics(SM_CYSMICON),LR_SHARED));
     windowClass.lpszClassName = L"VelosNativeWindow";
     if (!RegisterClassExW(&windowClass) && GetLastError() != ERROR_CLASS_ALREADY_EXISTS) {
         throw std::runtime_error("Cannot register the native window class.");
@@ -27,11 +31,12 @@ Window::Window(const std::wstring& title, int width, int height) {
     if (!GetClientRect(handle_, &client)) { throw std::runtime_error("Cannot query native window dimensions."); }
     width_ = static_cast<std::uint32_t>(std::max<LONG>(1, client.right - client.left));
     height_ = static_cast<std::uint32_t>(std::max<LONG>(1, client.bottom - client.top));
-    ShowWindow(handle_, SW_SHOWDEFAULT);
-    UpdateWindow(handle_);
+    if (showInitially) { show(); }
 }
 
 Window::~Window() { if (handle_) { DestroyWindow(handle_); } }
+
+void Window::show() { ShowWindow(handle_,SW_SHOWDEFAULT); UpdateWindow(handle_); }
 
 void Window::pump() {
     MSG message{};

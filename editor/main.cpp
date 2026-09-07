@@ -1,6 +1,7 @@
 #include "Editor.h"
 #include "platform/Files.h"
 #include "platform/Window.h"
+#include "platform/StartupSplash.h"
 
 #include <Windows.h>
 #include <objbase.h>
@@ -34,6 +35,9 @@ int main(int argc, char** argv) {
     bool automationReadOnly = false;
     bool isolated = false;
     std::string graphView;
+    bool forceSplash = false;
+    bool noSplash = false;
+    std::filesystem::path splashCapture;
     for (int index = 1; index < argc; ++index) {
         const std::string argument = argv[index];
         if (argument.starts_with("--adapter=")) { adapter = argument.substr(10); }
@@ -50,6 +54,9 @@ int main(int argc, char** argv) {
         else if (argument == "--automation-read-only") { automationReadOnly = true; }
         else if (argument == "--isolated") { isolated = true; }
         else if (argument.starts_with("--graph=")) { graphView = argument.substr(8); }
+        else if (argument == "--splash") { forceSplash = true; }
+        else if (argument == "--no-splash") { noSplash = true; }
+        else if (argument.starts_with("--capture-splash=")) { splashCapture = velos::wide(argument.substr(17)); }
         else if (argument.starts_with("--write-sample=")) {
             velos::writeTextAtomic(velos::wide(argument.substr(15)), velos::Scene::demo().serialize());
             std::cout << "Sample scene written.\n";
@@ -62,14 +69,26 @@ int main(int argc, char** argv) {
     if (!smoke) { FreeConsole(); }
     int result = 0;
     try {
-        velos::Window window(L"Velos | Workshop", width, height);
+        std::unique_ptr<velos::StartupSplash> splash;
+        if (!noSplash && (forceSplash || (!smoke && !isolated && controlPipe.empty()))) {
+            try { splash = std::make_unique<velos::StartupSplash>(L"Editor"); }
+            catch (const std::exception& error) { std::cerr << "Startup splash unavailable: " << error.what() << '\n'; }
+        }
+        const bool splashShown = splash != nullptr;
+        velos::Window window(L"Velos | Workshop", width, height, !splashShown);
         IMGUI_CHECKVERSION();
         ImGui::CreateContext();
         {
+            if (splash) {
+                splash->setStatus(L"Preparing graphics",0.2f);
+                if (!splashCapture.empty()) { splash->capture(splashCapture); }
+            }
             velos::Renderer renderer(window.handle(), adapter, debug);
+            if (splash) { splash->setStatus(L"Loading editor tools",0.6f); }
             velos::Editor editor(window.handle(), renderer, smoke || isolated);
             renderer.initializeUi();
             window.inputHandler = ImGui_ImplWin32_WndProcHandler;
+            if (splash) { splash->setStatus(L"Opening scene",0.8f); }
             if (!scenePath.empty() && !editor.openScene(scenePath)) { throw std::runtime_error("The requested scene could not be loaded."); }
             if (!graphView.empty()) { editor.showGraph(graphView); }
             if (!controlPipe.empty()) {
@@ -77,6 +96,7 @@ int main(int argc, char** argv) {
                 std::cout << "VELOS_CONTROL_READY " << controlPipe << std::endl;
             }
             if (selfTest) { editor.runAuthoringCheck(); }
+            if (splash) { splash->setStatus(L"Preparing first frame",0.95f); }
             auto previous = std::chrono::steady_clock::now();
             int frameIndex = 0;
             while (!editor.wantsClose()) {
@@ -100,6 +120,11 @@ int main(int argc, char** argv) {
                 ImGui::Render();
                 renderer.render(editor.frame(), ImGui::GetDrawData(), smoke ? false : editor.vsync());
                 editor.renderedAutomationFrame();
+                if (splash) {
+                    window.show();
+                    splash->dismiss();
+                    splash.reset();
+                }
                 ++frameIndex;
                 if (selfTest && frameIndex == 4) { window.resize(1100, 740); editor.resetLayout(); }
                 if (selfTest && frameIndex == 8) {
@@ -114,6 +139,7 @@ int main(int argc, char** argv) {
             const auto errors = renderer.validationErrors();
             if (!errors.empty()) { std::cerr << errors; result = 2; }
             const auto statistics = renderer.stats();
+            std::cout << "Startup splash: " << (splashShown ? "shown" : "skipped") << '\n';
             std::cout << "Adapter: " << statistics.adapter << "\nFrames: " << frameIndex
                 << "\nGPU scene: " << statistics.gpuMilliseconds << " ms\nDraws: " << statistics.drawCalls
                 << "\nTriangles: " << statistics.triangles << "\nVisible objects: " << statistics.visibleObjects

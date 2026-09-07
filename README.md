@@ -1,6 +1,6 @@
 # Velos Engine
 
-> Codename `Velos` - a placeholder name. Rename freely before Milestone 1.
+![Velos](assets/branding/velos-logo.png)
 
 A **native Windows engine/editor preview**, implemented in C++20 with D3D12 GPU rendering,
 Jolt physics, an EnTT scene model, budgeted disk caching, and an asynchronous AI assistant with
@@ -44,7 +44,7 @@ Read them in this order:
 | Phase | **MCP and graph control preview: v0.1.0-preview.3** |
 | Build | Windows x64, C++20, CMake, MSVC 2022/2026; Debug and Release |
 | Applications | Native scene editor and standalone game runtime |
-| Validation | Fourteen native test groups; official-SDK MCP authoring/import/play/graph/capture/export workflows; read-only and concurrent-client checks |
+| Validation | Fifteen native Release test groups; Debug splash checks; official-SDK MCP workflows; NVIDIA/WARP startup/export checks |
 | Scope | Partial implementations across the roadmap, not completion of every M0-M23 gate |
 
 The roadmap has 27 work packages, not 27 mandatory blockers before a playable result. The first
@@ -57,6 +57,8 @@ AI chat and standalone export, while full low-end performance acceptance remains
 ## Implemented now
 
 - Docked Win32/ImGui editor with scene hierarchy, filtering, selection, inspectors and native dialogs.
+- Original Velos logo, multi-resolution Windows app icon and a DPI-aware native startup splash
+  embedded in editor/runtime binaries. The splash closes on the first rendered frame, without an artificial delay.
 - Perspective/orbit and orthographic cameras, object picking, transform gizmos, snapping and focus.
 - Cube, sphere, plane and unlit-quad geometry; editable colors, roughness and metallic parameters.
 - Albedo, normal, occlusion/roughness/metallic and emissive texture maps; UV transforms, normal
@@ -131,6 +133,19 @@ spotlight from the Create menu and edit its cone angles in the Light inspector. 
 tab exposes instancing, mesh LODs, shadow resolution, the ray-shadow toggle, active/fallback status
 and a 0-256 MB DXR budget. A zero budget forces raster fallback. Ray tracing is off by default
 and requires a physical DXR 1.1 / Shader Model 6.5 adapter; the normal path remains SM 6.0.
+
+## Logo and Splash
+
+The [branding asset guide](assets/branding/README.md) includes the scalable logo, transparent PNGs,
+Windows icon, splash artwork and reproduction commands. The new branded binaries are available
+in [out/build-branding/Release/VelosEditor.exe](out/build-branding/Release/VelosEditor.exe) and
+[out/build-branding/Release/VelosRuntime.exe](out/build-branding/Release/VelosRuntime.exe), preserving
+the earlier preview builds. Rebuilding another directory incorporates the same embedded assets.
+
+Normal interactive startup displays the splash while graphics/tools/assets initialize. Use
+`--no-splash` to disable it. Tests and MCP launches skip it automatically; `--splash` explicitly
+enables it for a visual check. There is no minimum display time, and exported runtimes carry the
+artwork inside the executable. Branding does not require changes to scene files or MCP permissions.
 
 ## Controls
 

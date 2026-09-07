@@ -5,6 +5,7 @@
 #include "physics/BehaviorRuntime.h"
 #include "platform/Files.h"
 #include "platform/Window.h"
+#include "platform/StartupSplash.h"
 #include "rhi/d3d12/Renderer.h"
 #include "render/FrameMetrics.h"
 
@@ -27,6 +28,9 @@ int main(int argc, char** argv) {
     int frameLimit = 0;
     bool debug = false;
     bool explicitScene = false;
+    bool forceSplash = false;
+    bool noSplash = false;
+    std::filesystem::path splashCapture;
 #ifndef NDEBUG
     debug = true;
 #endif
@@ -46,6 +50,9 @@ int main(int argc, char** argv) {
         else if (argument.starts_with("--ray-budget-mb=")) { rayBudgetMb = std::stoull(argument.substr(16)); }
         else if (argument.starts_with("--stress=")) { stressCount = static_cast<std::uint32_t>(std::stoul(argument.substr(9))); }
         else if (argument.starts_with("--report=")) { report = velos::wide(argument.substr(9)); }
+        else if (argument == "--splash") { forceSplash = true; }
+        else if (argument == "--no-splash") { noSplash = true; }
+        else if (argument.starts_with("--capture-splash=")) { splashCapture = velos::wide(argument.substr(17)); }
     }
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
     if (FAILED(CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED))) { return 1; }
@@ -58,6 +65,13 @@ int main(int argc, char** argv) {
             CoUninitialize();
             return 0;
         }
+        std::unique_ptr<velos::StartupSplash> splash;
+        if (!noSplash && (forceSplash || frameLimit == 0)) {
+            try { splash = std::make_unique<velos::StartupSplash>(L"Runtime"); }
+            catch (const std::exception& error) { std::cerr << "Startup splash unavailable: " << error.what() << '\n'; }
+        }
+        const bool splashShown = splash != nullptr;
+        if (splash) { splash->setStatus(L"Loading scene",0.1f); }
         if (scenePath.empty()) { scenePath = velos::executableDirectory() / L"game.velos"; }
         if (std::filesystem::exists(scenePath.parent_path() / L"velos-build.json")) { velos::verifyPackage(scenePath.parent_path()); }
         auto scene = velos::Scene::demo();
@@ -69,13 +83,18 @@ int main(int argc, char** argv) {
         }
         if (stressCount != 0) { scene = velos::Scene::stress(stressCount); }
         if (rayShadows) { scene.rayTracedShadows = true; scene.touch(); }
-        velos::Window window(velos::wide(scene.name) + L" | Velos", 1280, 800);
+        velos::Window window(velos::wide(scene.name) + L" | Velos", 1280, 800, !splashShown);
         if (frameLimit == 0) { FreeConsole(); }
+        if (splash) {
+            splash->setStatus(L"Preparing graphics",0.25f);
+            if (!splashCapture.empty()) { splash->capture(splashCapture); }
+        }
         velos::Renderer renderer(window.handle(), adapter, debug);
         if (rayBudgetMb > 256) { throw std::invalid_argument("DXR memory budget must be between 0 and 256 MB."); }
         if (rayBudgetMb != 256) { renderer.setRayTracingBudget(rayBudgetMb * 1024 * 1024); }
         velos::DiskCache cache(velos::localDataDirectory() / L"cache" / L"geometry", 512 * 1024 * 1024);
         velos::DiskCache textureCache(velos::localDataDirectory() / L"cache" / L"textures", 512 * 1024 * 1024);
+        if (splash) { splash->setStatus(L"Loading game assets",0.6f); }
         for (const auto id : scene.entities()) {
             const auto* mesh = scene.get<velos::MeshRenderer>(id);
             if (mesh && !renderer.hasMesh(mesh->mesh)) {
@@ -93,6 +112,7 @@ int main(int argc, char** argv) {
                 }
             }
         }
+        if (splash) { splash->setStatus(L"Preparing simulation",0.85f); }
         velos::PhysicsWorld physics;
         physics.start(scene);
         velos::BehaviorRuntime behaviors;
@@ -118,6 +138,7 @@ int main(int argc, char** argv) {
         POINT previousCursor{};
         GetCursorPos(&previousCursor);
         int frameIndex = 0;
+        if (splash) { splash->setStatus(L"Preparing first frame",0.95f); }
         while (!window.closeRequested) {
             const auto frameStarted = std::chrono::steady_clock::now();
             window.pump();
@@ -144,6 +165,11 @@ int main(int argc, char** argv) {
             frame.camera.aspect = static_cast<float>(window.width()) / static_cast<float>(window.height());
             velos::extractScene(scene, frame, 0, true);
             renderer.render(frame, nullptr, frameLimit == 0);
+            if (splash) {
+                window.show();
+                splash->dismiss();
+                splash.reset();
+            }
             if (!report.empty() && frameIndex >= 30) {
                 metrics.add(std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - frameStarted).count(), renderer.stats().gpuMilliseconds);
             }
@@ -156,6 +182,7 @@ int main(int argc, char** argv) {
         if (!errors.empty()) { std::cerr << errors; result = 2; }
         const auto statistics = renderer.stats();
         if (!report.empty()) { velos::writeTextAtomic(report, metrics.report(statistics, instancing, lods).dump(2)); }
+        std::cout << "Startup splash: " << (splashShown ? "shown" : "skipped") << '\n';
         std::cout << "Camera draws: " << statistics.cameraDraws << " | Shadow draws: " << statistics.shadowDraws
             << " | LOD triangles saved: " << statistics.lodTrianglesSaved << '\n';
         std::cout << "Shadows: " << statistics.shadowStatus << " | DXR memory: " << statistics.rayTracingBytes << " bytes\n";

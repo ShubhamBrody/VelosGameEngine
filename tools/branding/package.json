@@ -1,0 +1,16 @@
+{
+  "name": "velos-brand-assets",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "build": "node generate.mjs",
+    "test": "node --test branding.test.mjs"
+  },
+  "devDependencies": {
+    "@resvg/resvg-js": "2.6.2",
+    "png-to-ico": "3.0.2",
+    "pngjs": "7.0.0"
+  }
+}

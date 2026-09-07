@@ -9,11 +9,12 @@ namespace velos {
 
 class Window {
 public:
-    Window(const std::wstring& title, int width = 1600, int height = 1000);
+    Window(const std::wstring& title, int width = 1600, int height = 1000, bool showInitially = true);
     ~Window();
     Window(const Window&) = delete;
     Window& operator=(const Window&) = delete;
     void pump();
+    void show();
     void resize(int width, int height);
     [[nodiscard]] HWND handle() const noexcept { return handle_; }
     [[nodiscard]] std::uint32_t width() const noexcept { return width_; }

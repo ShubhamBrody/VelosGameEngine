@@ -30,3 +30,12 @@ jobs:
         if: matrix.configuration == 'Release'
         shell: pwsh
         run: ./tools/mcp-smoke.ps1 -Configuration Release -BuildDirectory out/build -Adapter warp
+      - name: Branding assets and WARP startup
+        if: matrix.configuration == 'Release'
+        shell: pwsh
+        run: |
+          npm ci --prefix tools/branding --ignore-scripts --no-fund
+          if ($LASTEXITCODE -ne 0) { throw 'Branding dependencies failed to install.' }
+          npm test --prefix tools/branding
+          if ($LASTEXITCODE -ne 0) { throw 'Brand asset tests failed.' }
+          ./tools/branding-smoke.ps1 -Configuration Release -BuildDirectory out/build -Adapter warp

@@ -1,0 +1,5 @@
+#include <winres.h>
+#include "platform/BrandResources.h"
+
+VELOS_BRAND_ICON ICON "@PROJECT_SOURCE_DIR@/assets/branding/velos.ico"
+VELOS_BRAND_SPLASH RCDATA "@PROJECT_SOURCE_DIR@/assets/branding/velos-splash.png"

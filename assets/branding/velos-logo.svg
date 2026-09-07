@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="256" viewBox="0 0 900 256" role="img" aria-labelledby="title description">
+  <title id="title">Velos</title>
+  <desc id="description">An angular V with a separated forward stroke, followed by the Velos wordmark.</desc>
+  <g id="mark">
+    <path fill="#48DDB0" d="M28 40H84L132 158L106 220Z"/>
+    <path fill="#E7F0EB" d="M150 92H205L147 220H106Z"/>
+    <path fill="#F18B73" d="M175 40H230L214 76H159Z"/>
+  </g>
+  <g id="wordmark" fill="#E7F0EB">
+    <path d="M310 76H339L365 151L391 76H420L378 188H352Z"/>
+    <path d="M444 76H522V102H472V121H517V145H472V162H522V188H444Z"/>
+    <path d="M545 76H573V162H625V188H545Z"/>
+    <path fill-rule="evenodd" d="M682 74H714C733 74 745 86 745 105V159C745 178 733 190 714 190H682C663 190 651 178 651 159V105C651 86 663 74 682 74ZM685 101C680 101 678 104 678 109V155C678 160 680 163 685 163H711C716 163 718 160 718 155V109C718 104 716 101 711 101Z"/>
+    <path d="M797 74H855V100H802Q796 100 796 106V113Q796 119 802 119H829Q858 119 858 148V160Q858 188 830 188H772V162H825Q831 162 831 156V151Q831 145 825 145H796Q767 145 767 116V103Q767 74 797 74Z"/>
+  </g>
+</svg>
