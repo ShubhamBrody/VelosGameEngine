@@ -1,0 +1,184 @@
+{
+  "name": "velos-mcp-tools",
+  "displayName": "Velos MCP Tools",
+  "description": "Velos MCP provider and native editor connection commands",
+  "version": "0.1.0",
+  "publisher": "ShubhamBrody",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ShubhamBrody/VelosGameEngine.git",
+    "directory": "tools/vscode-extension"
+  },
+  "engines": {
+    "vscode": "^1.136.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished",
+    "onMcpServerDefinitionProvider:velos.mcpServers"
+  ],
+  "extensionKind": [
+    "ui"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false,
+      "description": "Velos launches a local native editor and permits approved scene authoring within the game workspace."
+    },
+    "virtualWorkspaces": false
+  },
+  "main": "./dist/extension.js",
+  "contributes": {
+    "mcpServerDefinitionProviders": [
+      {
+        "id": "velos.mcpServers",
+        "label": "Velos Engine"
+      }
+    ],
+    "commands": [
+      {
+        "command": "velosMcp.startEditor",
+        "title": "Start or Connect Editor",
+        "category": "Velos",
+        "icon": "$(debug-start)"
+      },
+      {
+        "command": "velosMcp.attach",
+        "title": "Attach to Running Editor",
+        "category": "Velos",
+        "icon": "$(plug)"
+      },
+      {
+        "command": "velosMcp.status",
+        "title": "Show Connection Status",
+        "category": "Velos",
+        "icon": "$(info)"
+      },
+      {
+        "command": "velosMcp.configure",
+        "title": "Configure Connection",
+        "category": "Velos",
+        "icon": "$(gear)"
+      },
+      {
+        "command": "velosMcp.readOnly",
+        "title": "Toggle Read-only MCP Access",
+        "category": "Velos",
+        "icon": "$(lock)"
+      },
+      {
+        "command": "velosMcp.manageServers",
+        "title": "Manage MCP Servers",
+        "category": "Velos",
+        "icon": "$(server)"
+      },
+      {
+        "command": "velosMcp.showOutput",
+        "title": "Show Output",
+        "category": "Velos",
+        "icon": "$(output)"
+      }
+    ],
+    "configuration": {
+      "title": "Velos MCP",
+      "properties": {
+        "velosMcp.enabled": {
+          "type": "boolean",
+          "default": true,
+          "scope": "resource",
+          "description": "Offer a Velos MCP server for this trusted local workspace."
+        },
+        "velosMcp.engineDirectory": {
+          "type": "string",
+          "default": "",
+          "scope": "machine-overridable",
+          "description": "Engine checkout directory. Empty uses the game workspace."
+        },
+        "velosMcp.editorExecutable": {
+          "type": "string",
+          "default": "",
+          "scope": "machine-overridable",
+          "description": "Path to VelosEditor.exe, absolute or relative to the engine directory. Empty uses out/build-control/Release/VelosEditor.exe."
+        },
+        "velosMcp.mode": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "attach"
+          ],
+          "default": "auto",
+          "scope": "resource",
+          "description": "Auto attaches when the pipe exists or requests editor launch. Attach never launches a process."
+        },
+        "velosMcp.pipeName": {
+          "type": "string",
+          "default": "",
+          "scope": "resource",
+          "description": "Existing velos- pipe name, or empty for a stable workspace-specific pipe."
+        },
+        "velosMcp.readOnly": {
+          "type": "boolean",
+          "default": false,
+          "scope": "resource",
+          "description": "Expose only read-only MCP tools. Restart the MCP server after changing this. Cannot elevate a native read-only editor."
+        },
+        "velosMcp.adapter": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "nvidia",
+            "intel",
+            "amd",
+            "warp"
+          ],
+          "default": "auto",
+          "scope": "machine-overridable",
+          "description": "GPU adapter preference when starting the native editor."
+        },
+        "velosMcp.nodeExecutable": {
+          "type": "string",
+          "default": "",
+          "scope": "machine-overridable",
+          "description": "Optional Node.js 22+ executable. Empty uses VS Code's bundled Node runtime."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "npm run check-types && npm run lint && node esbuild.js",
+    "watch": "npm-run-all -p watch:*",
+    "watch:esbuild": "node esbuild.js --watch",
+    "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
+    "package": "npm run check-types && npm run lint && node esbuild.js --production",
+    "compile-tests": "tsc -p . --outDir out",
+    "watch-tests": "tsc -p . -w --outDir out",
+    "pretest": "npm run compile-tests && npm run compile && npm run lint",
+    "check-types": "tsc --noEmit",
+    "lint": "eslint src",
+    "test": "node scripts/test-host.cjs",
+    "test:unit": "npm run compile-tests && node --test out/test/connection.test.js"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "24.x",
+    "@types/vscode": "^1.136.0",
+    "@vscode/test-cli": "^0.0.15",
+    "@vscode/test-electron": "^3.0.0",
+    "@vscode/vsce": "3.9.2",
+    "esbuild": "^0.28.1",
+    "eslint": "^10.5.0",
+    "npm-run-all": "^4.1.5",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.61.1",
+    "zod": "4.5.4"
+  },
+  "overrides": {
+    "diff": "^8.0.4",
+    "serialize-javascript": "^7.0.6"
+  }
+}

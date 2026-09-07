@@ -6,6 +6,30 @@ its engine services; this is not a mock scene generator or a command-line text-o
 
 ## Setup
 
+### VS Code Plugin
+
+[Velos MCP Tools](../tools/vscode-extension/README.md) is an installable VS Code extension that
+registers this server through the stable MCP provider API. It bundles the official adapter and
+its runtime dependencies, uses VS Code's Node runtime, and supplies native start/attach/status
+commands and per-workspace read-only settings. It requires local Windows x64 and VS Code 1.136+.
+
+```powershell
+.\tools\package-vscode.ps1 -Test
+code --install-extension out/vsix/velos-mcp-tools-0.1.0-win32-x64.vsix
+```
+
+Build the engine first. **Velos: Configure Connection** selects an editor executable; the engine
+checkout's control-preview build is detected automatically. **Velos: Start or Connect Editor**
+starts or reuses the configured pipe. Enable the plugin's Velos entry through **MCP: List Servers**
+and approve its tools in Copilot. Discovery never launches the editor. Untrusted, virtual and
+remote workspaces do not get a server definition.
+
+The legacy workspace configuration below is an alternative. The plugin preserves it; avoid
+enabling both registrations for the same game connection. This is a local VSIX, not a Marketplace
+release. Plugin installation does not include the native engine binaries.
+
+### Standalone Adapter
+
 Requirements: Windows x64, a supported D3D12/SM6 GPU, the native build prerequisites in
 [../README.md](../README.md), and Node.js 22 or later. The adapter dependencies are pinned in
 [../tools/mcp/package.json](../tools/mcp/package.json) and its lockfile.

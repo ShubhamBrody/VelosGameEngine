@@ -145,6 +145,23 @@ and requires a physical DXR 1.1 / Shader Model 6.5 adapter; the normal path rema
 
 ## MCP Setup
 
+For VS Code, an installable **Velos MCP Tools** extension now bundles the adapter and registers
+it with Copilot through the stable MCP provider API. It includes start/attach commands, status,
+workspace-specific connections and read-only access. The installed plugin uses VS Code's Node
+runtime; the native engine build is still required.
+
+```powershell
+.\tools\package-vscode.ps1 -Test
+code --install-extension out/vsix/velos-mcp-tools-0.1.0-win32-x64.vsix
+```
+
+Run **Velos: Start or Connect Editor**, then use **MCP: List Servers** and the Copilot tools picker.
+The [plugin guide](tools/vscode-extension/README.md) covers configuration, attaching to a running
+editor and debugging. The VSIX is a local preview, not a Marketplace publication. Keep the
+existing workspace MCP registration or use the plugin provider, not both for the same connection.
+
+The standalone adapter remains available for other editors:
+
 ```powershell
 npm ci --prefix tools/mcp --ignore-scripts
 .\tools\mcp-smoke.ps1 -BuildDirectory out/build-control -Adapter nvidia -Compact
