@@ -21,8 +21,12 @@ FetchContent_Declare(imguizmo
 FetchContent_Declare(cgltf
     URL https://codeload.github.com/jkuhlmann/cgltf/tar.gz/bbeb5b0b070ddacddac6852fb72143eb68454937
     DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+FetchContent_Declare(imnodes
+    URL https://codeload.github.com/Nelarius/imnodes/tar.gz/eb36902c892548ef94f88f51ad7e7c9c7058a71c
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+    SOURCE_SUBDIR _velos_sources_only)
 
-FetchContent_MakeAvailable(json entt imgui imguizmo cgltf)
+FetchContent_MakeAvailable(json entt imgui imguizmo cgltf imnodes)
 
 if(WIN32)
     add_library(velos_imgui STATIC
@@ -46,6 +50,9 @@ if(WIN32)
     add_library(velos_gizmo STATIC "${VELOS_GIZMO_DIR}/ImGuizmo.cpp")
     target_include_directories(velos_gizmo SYSTEM PUBLIC "${VELOS_GIZMO_DIR}")
     target_link_libraries(velos_gizmo PUBLIC velos_imgui)
+    add_library(velos_nodes STATIC "${imnodes_SOURCE_DIR}/imnodes.cpp")
+    target_include_directories(velos_nodes SYSTEM PUBLIC "${imnodes_SOURCE_DIR}")
+    target_link_libraries(velos_nodes PUBLIC velos_imgui)
 endif()
 
 set(OVERRIDE_CXX_FLAGS OFF CACHE BOOL "" FORCE)

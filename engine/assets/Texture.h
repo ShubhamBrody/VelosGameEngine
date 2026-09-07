@@ -35,6 +35,7 @@ struct TextureImportSettings {
 TextureData decodeCookedTexture(std::span<const std::byte> dds);
 std::vector<std::byte> cookTexture(std::span<const std::byte> source, std::string extension, const TextureImportSettings& settings);
 TextureData loadTexture(const std::filesystem::path& path, const TextureImportSettings& settings, DiskCache& cache);
+TextureData loadTexture(std::span<const std::byte> source, std::string extension, const TextureImportSettings& settings, DiskCache& cache);
 TextureData solidTexture(std::array<std::uint8_t, 4> color, bool srgb = false);
 std::string textureKey(std::string_view reference, TextureSlot slot);
 

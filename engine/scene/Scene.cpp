@@ -96,6 +96,7 @@ EntityId Scene::duplicate(EntityId id) {
     if (const auto* value = get<RigidBody>(id)) { set<RigidBody>(copy, *value); }
     if (const auto* value = get<Spin>(id)) { set<Spin>(copy, *value); }
     if (const auto* value = get<KeyboardDrive>(id)) { set<KeyboardDrive>(copy, *value); }
+    if (const auto* value = get<BehaviorGraph>(id)) { set<BehaviorGraph>(copy, *value); }
     return copy;
 }
 
@@ -232,12 +233,13 @@ Json Scene::entityJson(EntityId id) const {
     }
     if (const auto* spin = get<Spin>(id)) { result["spin"] = spin->degreesPerSecond; }
     if (const auto* drive = get<KeyboardDrive>(id)) { result["keyboardDrive"] = drive->speed; }
+    if (const auto* graph = get<BehaviorGraph>(id)) { result["behavior"] = behaviorJson(*graph); }
     return result;
 }
 
 Json Scene::toJson() const {
     Json result{{"schema", 1}, {"name", name}, {"ambient", ambient}, {"shadows", shadows},
-        {"rayTracedShadows", rayTracedShadows}, {"mode", twoDimensional ? "2d" : "3d"}, {"entities", Json::array()}};
+        {"rayTracedShadows", rayTracedShadows}, {"mode", twoDimensional ? "2d" : "3d"}, {"variables", variables}, {"entities", Json::array()}};
     for (const auto id : order_) { result["entities"].push_back(entityJson(id)); }
     return result;
 }
@@ -277,6 +279,14 @@ bool Scene::deserialize(std::string_view text, std::string& error) {
         const auto mode = root.value("mode", std::string("3d"));
         if (mode != "3d" && mode != "2d") { throw std::runtime_error("Unknown scene view mode."); }
         candidate.twoDimensional = mode == "2d";
+        const auto variableValues = root.value("variables", Json::object());
+        if (!variableValues.is_object() || variableValues.size() > 64) { throw std::runtime_error("Scenes support at most 64 numeric gameplay variables."); }
+        for (const auto& field : variableValues.items()) {
+            if (!validVariableName(field.key()) || !field.value().is_number()) { throw std::runtime_error("Invalid gameplay variable."); }
+            const auto value = field.value().get<double>();
+            if (!std::isfinite(value) || std::abs(value) > 1e6) { throw std::runtime_error("Gameplay variables must be finite and bounded."); }
+            candidate.variables.emplace(field.key(), value);
+        }
         const auto& entities = root.at("entities");
         if (!entities.is_array() || entities.size() > 10000) { throw std::runtime_error("Invalid entity list."); }
         for (const auto& entity : entities) {
@@ -386,8 +396,24 @@ bool Scene::deserialize(std::string_view text, std::string& error) {
             if (entity.contains("keyboardDrive")) {
                 candidate.set<KeyboardDrive>(id, {bounded(entity, "keyboardDrive", 4, 0.1f, 100)});
             }
+            if (entity.contains("behavior")) { candidate.set<BehaviorGraph>(id, parseBehaviorGraph(entity.at("behavior"))); }
         }
+        std::size_t graphNodes = 0;
         for (const auto id : candidate.order_) {
+            if (const auto* graph = candidate.get<BehaviorGraph>(id)) {
+                graphNodes += graph->nodes.size();
+                if (graphNodes > 2048) { throw std::runtime_error("Scene behavior node budget exceeded (2048)."); }
+                for (const auto& node : graph->nodes) {
+                    if (!node.variable.empty() && !candidate.variables.contains(node.variable)) { throw std::runtime_error("Graph references an unknown scene variable: " + node.variable); }
+                    if ((node.kind == BehaviorKind::Translate || node.kind == BehaviorKind::Rotate) && candidate.get<RigidBody>(id)) {
+                        throw std::runtime_error("Transform graph actions require an entity without a physics body; use velocity for dynamic bodies.");
+                    }
+                    if (node.kind == BehaviorKind::Velocity && (!candidate.get<RigidBody>(id) || candidate.get<RigidBody>(id)->motion != BodyMotion::Dynamic)) {
+                        throw std::runtime_error("Velocity graph actions require a dynamic physics body.");
+                    }
+                    if (node.kind == BehaviorKind::SetColor && !candidate.get<MeshRenderer>(id)) { throw std::runtime_error("Set-color graph actions require a material."); }
+                }
+            }
             auto ancestor = candidate.get<Transform>(id)->parent;
             std::size_t depth = 0;
             while (ancestor != 0) {

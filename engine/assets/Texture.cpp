@@ -173,13 +173,17 @@ std::vector<std::byte> cookTexture(std::span<const std::byte> source, std::strin
 
 TextureData loadTexture(const std::filesystem::path& path, const TextureImportSettings& settings, DiskCache& cache) {
     const auto source = readBytes(path, 64 * 1024 * 1024);
-    const auto key = sha256("velos-texture-v1-dxt-6c235c3:" + sha256(source) + ":" + utf8(path.extension().native())
+    return loadTexture(source, utf8(path.extension().native()), settings, cache);
+}
+
+TextureData loadTexture(std::span<const std::byte> source, std::string extension, const TextureImportSettings& settings, DiskCache& cache) {
+    const auto key = sha256("velos-texture-v1-dxt-6c235c3:" + sha256(source) + ":" + extension
         + ":" + std::to_string(static_cast<std::uint32_t>(settings.slot)) + ":" + std::to_string(settings.maximumDimension)
         + ":" + (settings.compress ? "bc" : "rgba"));
     if (const auto cached = cache.get(key)) {
         try { return decodeCookedTexture(*cached); } catch (const std::exception&) {}
     }
-    const auto cooked = cookTexture(source, utf8(path.extension().native()), settings);
+    const auto cooked = cookTexture(source, extension, settings);
     auto result = decodeCookedTexture(cooked);
     static_cast<void>(cache.put(key, cooked));
     return result;

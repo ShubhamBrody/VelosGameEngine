@@ -29,6 +29,11 @@ int main(int argc, char** argv) {
     std::string adapter = "auto";
     std::filesystem::path capture;
     std::filesystem::path scenePath;
+    std::filesystem::path automationRoot;
+    std::string controlPipe;
+    bool automationReadOnly = false;
+    bool isolated = false;
+    std::string graphView;
     for (int index = 1; index < argc; ++index) {
         const std::string argument = argv[index];
         if (argument.starts_with("--adapter=")) { adapter = argument.substr(10); }
@@ -40,6 +45,11 @@ int main(int argc, char** argv) {
         else if (argument == "--self-test") { selfTest = true; smoke = true; frameLimit = 12; }
         else if (argument == "--debug-gpu") { debug = true; }
         else if (argument == "--no-debug-gpu") { debug = false; }
+        else if (argument.starts_with("--control-pipe=")) { controlPipe = argument.substr(15); }
+        else if (argument.starts_with("--automation-root=")) { automationRoot = velos::wide(argument.substr(18)); }
+        else if (argument == "--automation-read-only") { automationReadOnly = true; }
+        else if (argument == "--isolated") { isolated = true; }
+        else if (argument.starts_with("--graph=")) { graphView = argument.substr(8); }
         else if (argument.starts_with("--write-sample=")) {
             velos::writeTextAtomic(velos::wide(argument.substr(15)), velos::Scene::demo().serialize());
             std::cout << "Sample scene written.\n";
@@ -57,10 +67,15 @@ int main(int argc, char** argv) {
         ImGui::CreateContext();
         {
             velos::Renderer renderer(window.handle(), adapter, debug);
-            velos::Editor editor(window.handle(), renderer, smoke);
+            velos::Editor editor(window.handle(), renderer, smoke || isolated);
             renderer.initializeUi();
             window.inputHandler = ImGui_ImplWin32_WndProcHandler;
             if (!scenePath.empty() && !editor.openScene(scenePath)) { throw std::runtime_error("The requested scene could not be loaded."); }
+            if (!graphView.empty()) { editor.showGraph(graphView); }
+            if (!controlPipe.empty()) {
+                editor.enableAutomation(controlPipe, automationRoot, automationReadOnly);
+                std::cout << "VELOS_CONTROL_READY " << controlPipe << std::endl;
+            }
             if (selfTest) { editor.runAuthoringCheck(); }
             auto previous = std::chrono::steady_clock::now();
             int frameIndex = 0;
@@ -71,7 +86,7 @@ int main(int argc, char** argv) {
                     if (smoke) { break; }
                     editor.requestClose();
                 }
-                if (window.minimized()) { WaitMessage(); continue; }
+                if (window.minimized() && !editor.automationEnabled()) { WaitMessage(); continue; }
                 const auto now = std::chrono::steady_clock::now();
                 const double elapsed = smoke ? 1.0 / 60.0 : std::chrono::duration<double>(now - previous).count();
                 previous = now;
@@ -79,13 +94,19 @@ int main(int argc, char** argv) {
                 renderer.newUiFrame();
                 ImGui::NewFrame();
                 ImGuizmo::BeginFrame();
+                editor.pumpAutomation();
                 editor.update(elapsed);
                 editor.draw(elapsed);
                 ImGui::Render();
                 renderer.render(editor.frame(), ImGui::GetDrawData(), smoke ? false : editor.vsync());
+                editor.renderedAutomationFrame();
                 ++frameIndex;
                 if (selfTest && frameIndex == 4) { window.resize(1100, 740); editor.resetLayout(); }
-                if (selfTest && frameIndex == 8) { window.resize(width, height); editor.resetLayout(); }
+                if (selfTest && frameIndex == 8) {
+                    window.resize(width, height);
+                    editor.resetLayout();
+                    if (!graphView.empty()) { editor.showGraph(graphView); }
+                }
                 if (frameLimit > 0 && frameIndex >= frameLimit) { break; }
             }
             renderer.waitIdle();

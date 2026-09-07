@@ -20,6 +20,8 @@ public:
     [[nodiscard]] bool canUndo() const noexcept { return cursor_ > 0; }
     [[nodiscard]] bool canRedo() const noexcept { return cursor_ < commands_.size(); }
     [[nodiscard]] std::size_t bytes() const noexcept { return bytes_; }
+    [[nodiscard]] std::size_t budgetBytes() const noexcept { return budget_; }
+    [[nodiscard]] bool pending() const noexcept { return pending_ != nullptr; }
     [[nodiscard]] std::uint64_t serializationCount() const noexcept { return serializations_; }
 
 private:

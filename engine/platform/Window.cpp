@@ -23,6 +23,10 @@ Window::Window(const std::wstring& title, int width, int height) {
         CW_USEDEFAULT, CW_USEDEFAULT, rectangle.right - rectangle.left, rectangle.bottom - rectangle.top,
         nullptr, nullptr, instance, this);
     if (!handle_) { throw std::runtime_error("Cannot create the native editor window."); }
+    RECT client{};
+    if (!GetClientRect(handle_, &client)) { throw std::runtime_error("Cannot query native window dimensions."); }
+    width_ = static_cast<std::uint32_t>(std::max<LONG>(1, client.right - client.left));
+    height_ = static_cast<std::uint32_t>(std::max<LONG>(1, client.bottom - client.top));
     ShowWindow(handle_, SW_SHOWDEFAULT);
     UpdateWindow(handle_);
 }

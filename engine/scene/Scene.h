@@ -1,12 +1,14 @@
 #pragma once
 
 #include "assets/Material.h"
+#include "scene/BehaviorGraph.h"
 #include <DirectXMath.h>
 #include <entt/entt.hpp>
 #include <nlohmann/json.hpp>
 
 #include <cstdint>
 #include <atomic>
+#include <map>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -74,6 +76,7 @@ public:
     bool shadows = true;
     bool rayTracedShadows = false;
     bool twoDimensional = false;
+    std::map<std::string, double> variables;
 
     EntityId create(std::string name);
     EntityId addPrimitive(std::string mesh, std::string name = {});

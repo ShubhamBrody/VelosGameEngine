@@ -2,6 +2,7 @@
 #include "bridge/Extract.h"
 #include "core/FixedStepClock.h"
 #include "physics/Gameplay.h"
+#include "physics/BehaviorRuntime.h"
 #include "platform/Files.h"
 #include "platform/Window.h"
 #include "rhi/d3d12/Renderer.h"
@@ -94,6 +95,8 @@ int main(int argc, char** argv) {
         }
         velos::PhysicsWorld physics;
         physics.start(scene);
+        velos::BehaviorRuntime behaviors;
+        behaviors.start(scene, physics);
         velos::FixedStepClock clock;
         velos::RenderFrame frame;
         frame.instancing = instancing;
@@ -128,6 +131,7 @@ int main(int argc, char** argv) {
                 velos::driveBodies(scene, physics, frame.camera, static_cast<float>(down('D')) - static_cast<float>(down('A')),
                     static_cast<float>(down('W')) - static_cast<float>(down('S')));
                 scene.tick(clock.stepSeconds());
+                behaviors.step(scene, physics, static_cast<float>(clock.stepSeconds()), down);
                 physics.step(scene, static_cast<float>(clock.stepSeconds()));
             }
             renderer.resizeWindow(window.width(), window.height());

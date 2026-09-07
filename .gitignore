@@ -39,6 +39,10 @@ cmake-build-*/
 !.vscode/launch.json
 !.vscode/tasks.json
 !.vscode/c_cpp_properties.json
+!.vscode/mcp.json
+
+# ---- MCP adapter dependencies ----
+node_modules/
 
 # ---- .NET (scripting layer, tools) ----
 [Bb]in/

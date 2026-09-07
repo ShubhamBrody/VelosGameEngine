@@ -96,7 +96,10 @@ struct ObjectConstants {
 static_assert(sizeof(ObjectConstants) == objectStride);
 
 void savePng(const std::filesystem::path& path, UINT width, UINT height, UINT stride, BYTE* pixels, UINT bytes) {
-    if (static_cast<UINT64>(stride) * height > bytes) { throw std::runtime_error("Incomplete screenshot buffer."); }
+    if (width == 0 || height == 0 || static_cast<UINT64>(width) * 4 > stride
+        || static_cast<UINT64>(stride) * (height - 1) + static_cast<UINT64>(width) * 4 > bytes) {
+        throw std::runtime_error("Incomplete screenshot buffer.");
+    }
     std::vector<BYTE> converted(static_cast<std::size_t>(width) * height * 4);
     for (UINT row = 0; row < height; ++row) {
         for (UINT column = 0; column < width; ++column) {
@@ -1154,7 +1157,7 @@ void Renderer::capture(const std::filesystem::path& path) {
     const D3D12_RANGE range{0, static_cast<SIZE_T>(size)};
     check(readback->Map(0, &range, reinterpret_cast<void**>(&pixels)), "Map screenshot");
     try {
-        savePng(path, impl_->width, impl_->height, footprint.Footprint.RowPitch, pixels, static_cast<UINT>(size));
+        savePng(path, static_cast<UINT>(description.Width), description.Height, footprint.Footprint.RowPitch, pixels, static_cast<UINT>(size));
     } catch (...) {
         readback->Unmap(0, nullptr);
         throw;

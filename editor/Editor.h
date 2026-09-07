@@ -1,11 +1,14 @@
 #pragma once
 
 #include "AssistantPanel.h"
+#include "GraphPanel.h"
 #include "bridge/Extract.h"
 #include "core/FixedStepClock.h"
 #include "rhi/d3d12/Renderer.h"
 #include "physics/PhysicsWorld.h"
+#include "physics/BehaviorRuntime.h"
 #include "scene/History.h"
+#include "automation/ControlPipe.h"
 
 #include <array>
 #include <deque>
@@ -29,7 +32,13 @@ public:
     void resetLayout() { layoutBuilt_ = false; forceLayout_ = true; }
     void requestClose();
     void runAuthoringCheck();
+    void showGraph(const std::string& view) { graphs_.show(view); }
     void importGlb(const std::filesystem::path& path);
+    void enableAutomation(const std::string& pipe, const std::filesystem::path& root, bool readOnly = false);
+    void pumpAutomation();
+    void renderedAutomationFrame() noexcept { renderedRevision_ = scene_.revision(); ++renderedFrames_; }
+    nlohmann::json automationRequest(std::string_view method, const nlohmann::json& params);
+    [[nodiscard]] bool automationEnabled() const noexcept { return control_ != nullptr; }
     [[nodiscard]] RenderFrame& frame() { return frame_; }
     [[nodiscard]] bool wantsClose() const noexcept { return wantsClose_; }
     [[nodiscard]] bool vsync() const noexcept { return vsync_; }
@@ -44,7 +53,9 @@ private:
     History history_;
     FixedStepClock clock_;
     PhysicsWorld physics_;
+    BehaviorRuntime behaviors_;
     AssistantPanel assistant_;
+    GraphPanel graphs_;
     DiskCache geometryCache_;
     DiskCache textureCache_;
     struct ImportedAsset { MeshData mesh; std::string reference; std::string name; std::filesystem::path project; };
@@ -86,6 +97,17 @@ private:
     int pendingAction_ = 0;
     EntityId pendingDelete_ = 0;
     EntityId pendingDuplicate_ = 0;
+    std::filesystem::path automationRoot_;
+    bool automationReadOnly_ = false;
+    std::uint64_t renderedRevision_ = 0;
+    std::uint64_t renderedFrames_ = 0;
+    struct ControlJob { std::string id; std::string kind; std::string state; nlohmann::json result; std::string error; };
+    std::deque<ControlJob> controlJobs_;
+    std::future<std::function<nlohmann::json()>> controlWork_;
+    std::uint64_t nextControlJob_ = 1;
+    bool cancelControlJob_ = false;
+    std::set<int> controlKeys_;
+    std::unique_ptr<automation::ControlPipe> control_;
 
     void toolbar();
     void hierarchy();
@@ -105,6 +127,10 @@ private:
     void chooseImport();
     void chooseTexture(TextureSlot slot);
     void exportRuntime();
+    void prepareAutomationAssets(const Scene& scene, const std::filesystem::path& project);
+    std::filesystem::path automationPath(std::string_view relative, std::string_view extension = {}) const;
+    void requireAutomationEdit(const nlohmann::json& params, bool requireRevision = true) const;
+    void simulateTick();
 };
 
 }

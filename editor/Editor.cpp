@@ -164,12 +164,7 @@ void Editor::update(double elapsed) {
         const auto ticks = clock_.advance(elapsed);
         try {
             for (std::uint32_t index = 0; index < ticks.steps; ++index) {
-                const bool inputEnabled = GetForegroundWindow() == window_ && !ImGui::GetIO().WantTextInput;
-                const auto down = [&](int key) { return inputEnabled && (GetAsyncKeyState(key) & 0x8000) != 0; };
-                driveBodies(scene_, physics_, frame_.camera, static_cast<float>(down('D')) - static_cast<float>(down('A')),
-                    static_cast<float>(down('W')) - static_cast<float>(down('S')));
-                scene_.tick(clock_.stepSeconds());
-                physics_.step(scene_, static_cast<float>(clock_.stepSeconds()));
+                simulateTick();
             }
         } catch (const std::exception& error) {
             log(error.what(), true);
@@ -187,12 +182,20 @@ void Editor::update(double elapsed) {
 }
 
 void Editor::startPlay() {
-    if (import_.valid() || textureImport_.valid()) { log("Wait for the current import before starting simulation."); return; }
+    if (import_.valid() || textureImport_.valid() || controlWork_.valid()) { log("Wait for the current import or automation job before starting simulation."); return; }
     assistant_.cancel();
     if (playing_) { paused_ = !paused_; return; }
-    try { physics_.start(scene_); }
-    catch (const std::exception& error) { log(error.what(), true); return; }
-    playSnapshot_ = scene_.serialize();
+    const auto snapshot = scene_.serialize();
+    try { physics_.start(scene_); behaviors_.start(scene_, physics_); }
+    catch (const std::exception& error) {
+        physics_.stop();
+        behaviors_.stop();
+        std::string restoreError;
+        static_cast<void>(scene_.deserialize(snapshot, restoreError));
+        log(error.what(), true);
+        return;
+    }
+    playSnapshot_ = snapshot;
     playing_ = true;
     paused_ = false;
     history_.cancel();
@@ -203,6 +206,8 @@ void Editor::startPlay() {
 void Editor::stopPlay() {
     if (!playing_) { return; }
     physics_.stop();
+    behaviors_.stop();
+    controlKeys_.clear();
     std::string error;
     if (!scene_.deserialize(playSnapshot_, error)) { log("Cannot restore authored scene: " + error, true); return; }
     playing_ = paused_ = false;
@@ -215,7 +220,16 @@ void Editor::stepPlay() {
     if (!playing_) { startPlay(); }
     if (!playing_) { return; }
     paused_ = true;
+    simulateTick();
+}
+
+void Editor::simulateTick() {
+    const bool inputEnabled = GetForegroundWindow() == window_ && !ImGui::GetIO().WantTextInput;
+    const auto down = [&](int key) { return controlKeys_.contains(key) || (inputEnabled && (GetAsyncKeyState(key) & 0x8000) != 0); };
+    driveBodies(scene_, physics_, frame_.camera, static_cast<float>(down('D')) - static_cast<float>(down('A')),
+        static_cast<float>(down('W')) - static_cast<float>(down('S')));
     scene_.tick(clock_.stepSeconds());
+    behaviors_.step(scene_, physics_, static_cast<float>(clock_.stepSeconds()), down);
     physics_.step(scene_, static_cast<float>(clock_.stepSeconds()));
 }
 
@@ -235,6 +249,7 @@ void Editor::buildLayout() {
         ImGui::DockBuilderDockWindow("Inspector", right);
         ImGui::DockBuilderDockWindow("Assistant", assistant);
         ImGui::DockBuilderDockWindow("Viewport", center);
+        ImGui::DockBuilderDockWindow("Graphs", center);
         ImGui::DockBuilderDockWindow("Assets", bottom);
         ImGui::DockBuilderDockWindow("Console", bottom);
         ImGui::DockBuilderDockWindow("Performance", bottom);
@@ -267,6 +282,7 @@ void Editor::draw(double elapsed) {
     hierarchy();
     inspector();
     viewport();
+    changed_ |= graphs_.draw(scene_,history_,selected_,playing_,behaviors_.state());
     assets();
     diagnostics();
     console();
@@ -376,12 +392,14 @@ void Editor::toolbar() {
         if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_O)) { pendingAction_ = 2; showUnsaved_ = true; }
         if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Z) && !playing_) { std::string error; history_.undo(scene_, error); }
         if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Y) && !playing_) { std::string error; history_.redo(scene_, error); }
-        if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_D) && !playing_) { pendingDuplicate_ = selected_; }
-        if (ImGui::IsKeyPressed(ImGuiKey_Delete) && !playing_) { pendingDelete_ = selected_; }
-        if (ImGui::IsKeyPressed(ImGuiKey_F)) { focusSelection(); }
-        if (ImGui::IsKeyPressed(ImGuiKey_W)) { operation_ = 0; }
-        if (ImGui::IsKeyPressed(ImGuiKey_E)) { operation_ = 1; }
-        if (ImGui::IsKeyPressed(ImGuiKey_R)) { operation_ = 2; }
+        if (!graphs_.focused()) {
+            if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_D) && !playing_) { pendingDuplicate_ = selected_; }
+            if (ImGui::IsKeyPressed(ImGuiKey_Delete) && !playing_) { pendingDelete_ = selected_; }
+            if (ImGui::IsKeyPressed(ImGuiKey_F)) { focusSelection(); }
+            if (ImGui::IsKeyPressed(ImGuiKey_W)) { operation_ = 0; }
+            if (ImGui::IsKeyPressed(ImGuiKey_E)) { operation_ = 1; }
+            if (ImGui::IsKeyPressed(ImGuiKey_R)) { operation_ = 2; }
+        }
     }
 }
 
@@ -860,7 +878,7 @@ std::filesystem::path Editor::chooseScenePath(bool save) {
 }
 
 bool Editor::saveScene(bool choosePath) {
-    if (playing_ || textureImport_.valid()) { return false; }
+    if (playing_ || textureImport_.valid() || controlWork_.valid()) { return false; }
     try {
         auto destination = scenePath_;
         if (choosePath || destination.empty()) { destination = chooseScenePath(true); }
@@ -890,7 +908,7 @@ bool Editor::saveScene(bool choosePath) {
 
 bool Editor::openScene(const std::filesystem::path& path) {
     try {
-        if (import_.valid() || textureImport_.valid()) { throw std::runtime_error("Wait for the current import before opening another project."); }
+        if (import_.valid() || textureImport_.valid() || controlWork_.valid()) { throw std::runtime_error("Wait for the current import or automation job before opening another project."); }
         Scene candidate;
         std::string error;
         if (!candidate.deserialize(readText(path), error)) { throw std::runtime_error(error); }
@@ -929,7 +947,7 @@ bool Editor::openScene(const std::filesystem::path& path) {
 void Editor::requestClose() { pendingAction_ = 3; showUnsaved_ = true; }
 
 void Editor::applyPendingAction() {
-    if (import_.valid() || textureImport_.valid()) { log("Wait for the current import before switching projects."); pendingAction_ = 0; return; }
+    if (import_.valid() || textureImport_.valid() || controlWork_.valid()) { log("Wait for the current import or automation job before switching projects."); pendingAction_ = 0; return; }
     stopPlay();
     history_.clear();
     if (pendingAction_ == 1) {
@@ -988,7 +1006,7 @@ void Editor::chooseImport() {
 }
 
 void Editor::importGlb(const std::filesystem::path& path) {
-    if (import_.valid() || playing_ || scenePath_.empty()) { log("Save the scene and finish the active operation before importing.", true); return; }
+    if (import_.valid() || controlWork_.valid() || playing_ || scenePath_.empty()) { log("Save the scene and finish the active operation before importing.", true); return; }
     const auto project = scenePath_.parent_path();
     importStatus_ = "Importing " + utf8(path.filename().native());
     import_ = std::async(std::launch::async, [this, path, project] {
@@ -1006,7 +1024,7 @@ void Editor::importGlb(const std::filesystem::path& path) {
 }
 
 void Editor::chooseTexture(TextureSlot slot) {
-    if (textureImport_.valid() || import_.valid() || playing_ || !scene_.get<MeshRenderer>(selected_)) { return; }
+    if (textureImport_.valid() || import_.valid() || controlWork_.valid() || playing_ || !scene_.get<MeshRenderer>(selected_)) { return; }
     if (scenePath_.empty() && !saveScene()) { return; }
     ComPtr<IFileOpenDialog> dialog;
     if (FAILED(CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&dialog)))) { log("Cannot open texture dialog.", true); return; }
@@ -1026,7 +1044,7 @@ void Editor::chooseTexture(TextureSlot slot) {
     textureImport_ = std::async(std::launch::async, [this, source, project, entity, slot, revision] {
         const auto bytes = readBytes(source);
         const auto reference = "Assets/" + sha256(bytes) + utf8(source.extension().native());
-        auto texture = loadTexture(source, {slot}, textureCache_);
+        auto texture = loadTexture(bytes, utf8(source.extension().native()), {slot}, textureCache_);
         const auto destination = projectAssetPath(project, reference);
         if (!std::filesystem::exists(destination)) { writeAtomic(destination, bytes); }
         else if (sha256(readBytes(destination)) != sha256(bytes)) { throw std::runtime_error("Existing project texture conflicts with imported content."); }
@@ -1035,7 +1053,7 @@ void Editor::chooseTexture(TextureSlot slot) {
 }
 
 void Editor::exportRuntime() {
-    if (playing_ || import_.valid() || export_.valid()) { return; }
+    if (playing_ || import_.valid() || export_.valid() || controlWork_.valid()) { return; }
     if (!saveScene()) { return; }
     ComPtr<IFileOpenDialog> dialog;
     if (FAILED(CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&dialog)))) {
