@@ -26,3 +26,7 @@ jobs:
         if: matrix.configuration == 'Release'
         shell: pwsh
         run: ./tools/graphics-smoke.ps1 -Configuration Release -Adapter warp
+      - name: MCP WARP workflow
+        if: matrix.configuration == 'Release'
+        shell: pwsh
+        run: ./tools/mcp-smoke.ps1 -Configuration Release -BuildDirectory out/build -Adapter warp

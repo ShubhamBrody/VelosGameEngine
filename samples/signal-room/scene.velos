@@ -1,0 +1,2065 @@
+{
+  "ambient": 0.5,
+  "entities": [
+    {
+      "id": 1,
+      "mesh": {
+        "alphaCutoff": 0.5,
+        "asset": "plane",
+        "color": [
+          0.1599999964237213,
+          0.1899999976158142,
+          0.20000000298023224,
+          1.0
+        ],
+        "doubleSided": true,
+        "emission": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "emissionStrength": 0.0,
+        "metallic": 0.0,
+        "normalStrength": 1.0,
+        "roughness": 0.949999988079071,
+        "shadow": true,
+        "surface": 0,
+        "textures": [
+          "",
+          "",
+          "",
+          ""
+        ],
+        "unlit": false,
+        "uvOffset": [
+          0.0,
+          0.0
+        ],
+        "uvScale": [
+          1.0,
+          1.0
+        ]
+      },
+      "name": "Stage",
+      "parent": 0,
+      "position": [
+        0.0,
+        -0.699999988079071,
+        0.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        24.0,
+        1.0,
+        24.0
+      ],
+      "visible": true
+    },
+    {
+      "id": 2,
+      "mesh": {
+        "alphaCutoff": 0.5,
+        "asset": "cube",
+        "color": [
+          0.10000000149011612,
+          0.12999999523162842,
+          0.15000000596046448,
+          1.0
+        ],
+        "doubleSided": true,
+        "emission": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "emissionStrength": 0.0,
+        "metallic": 0.0,
+        "normalStrength": 1.0,
+        "roughness": 0.699999988079071,
+        "shadow": true,
+        "surface": 0,
+        "textures": [
+          "",
+          "",
+          "",
+          ""
+        ],
+        "unlit": false,
+        "uvOffset": [
+          0.0,
+          0.0
+        ],
+        "uvScale": [
+          1.0,
+          1.0
+        ]
+      },
+      "name": "Control board",
+      "parent": 0,
+      "position": [
+        0.0,
+        2.200000047683716,
+        -0.6000000238418579
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        10.600000381469727,
+        5.099999904632568,
+        0.699999988079071
+      ],
+      "visible": true
+    },
+    {
+      "id": 3,
+      "light": {
+        "color": [
+          1.0,
+          0.9599999785423279,
+          0.8799999952316284
+        ],
+        "direction": [
+          -0.20000000298023224,
+          -0.6000000238418579,
+          -1.0
+        ],
+        "innerAngle": 25.0,
+        "intensity": 3.0,
+        "kind": "directional",
+        "outerAngle": 45.0,
+        "range": 12.0
+      },
+      "name": "Key light",
+      "parent": 0,
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "visible": true
+    },
+    {
+      "behavior": {
+        "enabled": true,
+        "links": [
+          {
+            "from": 1,
+            "output": "next",
+            "to": 2
+          },
+          {
+            "from": 2,
+            "output": "true",
+            "to": 3
+          },
+          {
+            "from": 2,
+            "output": "false",
+            "to": 4
+          },
+          {
+            "from": 3,
+            "output": "next",
+            "to": 5
+          },
+          {
+            "from": 4,
+            "output": "next",
+            "to": 5
+          },
+          {
+            "from": 5,
+            "output": "true",
+            "to": 6
+          },
+          {
+            "from": 5,
+            "output": "false",
+            "to": 7
+          },
+          {
+            "from": 8,
+            "output": "next",
+            "to": 9
+          },
+          {
+            "from": 9,
+            "output": "true",
+            "to": 10
+          },
+          {
+            "from": 9,
+            "output": "false",
+            "to": 11
+          }
+        ],
+        "nodes": [
+          {
+            "comparison": "greater",
+            "id": 1,
+            "key": "1",
+            "kind": "key_pressed",
+            "position": [
+              24.0,
+              24.0
+            ],
+            "value": 1.0,
+            "variable": "",
+            "vector": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "visible": true
+          },
+          {
+            "comparison": "equal",
+            "id": 2,
+            "key": "Space",
+            "kind": "branch",
+            "position": [
+              320.0,
+              24.0
+            ],
+            "value": 0.0,
+            "variable": "a",
+            "vector": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "visible": true
+          },
+          {
+            "comparison": "greater",
+            "id": 3,
+            "key": "Space",
+            "kind": "set_variable",
+            "position": [
+              640.0,
+              24.0
+            ],
+            "value": 1.0,
+            "variable": "a",
+            "vector": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "visible": true
+          },
+          {
+            "comparison": "greater",
+            "id": 4,
+            "key": "Space",
+            "kind": "set_variable",
+            "position": [
+              640.0,
+              260.0
+            ],
+            "value": 0.0,
+            "variable": "a",
+            "vector": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "visible": true
+          },
+          {
+            "comparison": "equal",
+            "id": 5,
+            "key": "Space",
+            "kind": "branch",
+            "position": [
+              960.0,
+              24.0
+            ],
+            "value": 0.0,
+            "variable": "b",
+            "vector": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "visible": true
+          },
+          {
+            "comparison": "greater",
+            "id": 6,
+            "key": "Space",
+            "kind": "set_variable",
+            "position": [
+              1280.0,
+              24.0
+            ],
+            "value": 1.0,
+            "variable": "b",
+            "vector": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "visible": true
+          },
+          {
+            "comparison": "greater",
+            "id": 7,
+            "key": "Space",
+            "kind": "set_variable",
+            "position": [
+              1280.0,
+              260.0
+            ],
+            "value": 0.0,
+            "variable": "b",
+            "vector": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "visible": true
+          },
+          {
+            "comparison": "greater",
+            "id": 8,
+            "key": "Space",
+            "kind": "tick",
+            "position": [
+              24.0,
+              620.0
+            ],
+            "value": 1.0,
+            "variable": "",
+            "vector": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "visible": true
+          },
+          {
+            "comparison": "equal",
+            "id": 9,
+            "key": "Space",
+            "kind": "branch",
+            "position": [
+              320.0,
+              620.0
+            ],
+            "value": 1.0,
+            "variable": "a",
+            "vector": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "visible": true
+          },
+          {
+            "comparison": "greater",
+            "id": 10,
+            "key": "Space",
+            "kind": "set_color",
+            "position": [
+              640.0,
+              580.0
+            ],
+            "value": 1.0,
+            "variable": "",
+            "vector": [
+              0.2199999988079071,
+              0.8299999833106995,
+              0.6100000143051147
+            ],
+            "visible": true
+          },
+          {
+            "comparison": "greater",
+            "id": 11,
+            "key": "Space",
+            "kind": "set_color",
+            "position": [
+              640.0,
+              830.0
+            ],
+            "value": 1.0,
+            "variable": "",
+            "vector": [
+              0.10999999940395355,
+              0.15000000596046448,
+              0.17000000178813934
+            ],
+            "visible": true
+          }
+        ]
+      },
+      "id": 4,
+      "mesh": {
+        "alphaCutoff": 0.5,
+        "asset": "cube",
+        "color": [
+          0.10999999940395355,
+          0.15000000596046448,
+          0.17000000178813934,
+          1.0
+        ],
+        "doubleSided": true,
+        "emission": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "emissionStrength": 0.0,
+        "metallic": 0.0,
+        "normalStrength": 1.0,
+        "roughness": 0.699999988079071,
+        "shadow": true,
+        "surface": 0,
+        "textures": [
+          "",
+          "",
+          "",
+          ""
+        ],
+        "unlit": false,
+        "uvOffset": [
+          0.0,
+          0.0
+        ],
+        "uvScale": [
+          1.0,
+          1.0
+        ]
+      },
+      "name": "Switch 1",
+      "parent": 0,
+      "position": [
+        -3.0,
+        1.399999976158142,
+        0.20000000298023224
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        2.299999952316284,
+        2.0999999046325684,
+        0.6499999761581421
+      ],
+      "visible": true
+    },
+    {
+      "id": 5,
+      "mesh": {
+        "alphaCutoff": 0.5,
+        "asset": "quad",
+        "color": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "doubleSided": true,
+        "emission": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "emissionStrength": 0.0,
+        "metallic": 0.0,
+        "normalStrength": 1.0,
+        "roughness": 0.44999998807907104,
+        "shadow": false,
+        "surface": 1,
+        "textures": [
+          "Assets/802ecf066a89049da75e0183f65049486da3710d1c985181f6ae129b5f6af9d7.png",
+          "",
+          "",
+          ""
+        ],
+        "unlit": true,
+        "uvOffset": [
+          0.0,
+          0.0
+        ],
+        "uvScale": [
+          1.0,
+          1.0
+        ]
+      },
+      "name": "Key 1",
+      "parent": 4,
+      "position": [
+        0.0,
+        5.960464477539063e-08,
+        0.5538461208343506
+      ],
+      "rotation": [
+        -0.0,
+        0.0,
+        -0.0,
+        1.0
+      ],
+      "scale": [
+        0.5652173757553101,
+        0.6190476417541504,
+        1.5384615659713745
+      ],
+      "visible": true
+    },
+    {
+      "id": 6,
+      "mesh": {
+        "alphaCutoff": 0.5,
+        "asset": "cube",
+        "color": [
+          0.2199999988079071,
+          0.8299999833106995,
+          0.6100000143051147,
+          1.0
+        ],
+        "doubleSided": true,
+        "emission": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "emissionStrength": 0.0,
+        "metallic": 0.0,
+        "normalStrength": 1.0,
+        "roughness": 0.44999998807907104,
+        "shadow": false,
+        "surface": 0,
+        "textures": [
+          "",
+          "",
+          "",
+          ""
+        ],
+        "unlit": true,
+        "uvOffset": [
+          0.0,
+          0.0
+        ],
+        "uvScale": [
+          1.0,
+          1.0
+        ]
+      },
+      "name": "Target 1",
+      "parent": 0,
+      "position": [
+        -3.0,
+        3.25,
+        0.15000000596046448
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        0.75,
+        0.2800000011920929,
+        0.44999998807907104
+      ],
+      "visible": true
+    },
+    {
+      "behavior": {
+        "enabled": true,
+        "links": [
+          {
+            "from": 1,
+            "output": "next",
+            "to": 2
+          },
+          {
+            "from": 2,
+            "output": "true",
+            "to": 3
+          },
+          {
+            "from": 2,
+            "output": "false",
+            "to": 4
+          },
+          {
+            "from": 3,
+            "output": "next",
+            "to": 5
+          },
+          {
+            "from": 4,
+            "output": "next",
+            "to": 5
+          },
+          {
+            "from": 5,
+            "output": "true",
+            "to": 6
+          },
+          {
+            "from": 5,
+            "output": "false",
+            "to": 7
+          },
+          {
+            "from": 8,
+            "output": "next",
+            "to": 9
+          },
+          {
+            "from": 9,
+            "output": "true",
+            "to": 10
+          },
+          {
+            "from": 9,
+            "output": "false",
+            "to": 11
+          }
+        ],
+        "nodes": [
+          {
+            "comparison": "greater",
+            "id": 1,
+            "key": "2",
+            "kind": "key_pressed",
+            "position": [
+              24.0,
+              24.0
+            ],
+            "value": 1.0,
+            "variable": "",
+            "vector": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "visible": true
+          },
+          {
+            "comparison": "equal",
+            "id": 2,
+            "key": "Space",
+            "kind": "branch",
+            "position": [
+              320.0,
+              24.0
+            ],
+            "value": 0.0,
+            "variable": "b",
+            "vector": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "visible": true
+          },
+          {
+            "comparison": "greater",
+            "id": 3,
+            "key": "Space",
+            "kind": "set_variable",
+            "position": [
+              640.0,
+              24.0
+            ],
+            "value": 1.0,
+            "variable": "b",
+            "vector": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "visible": true
+          },
+          {
+            "comparison": "greater",
+            "id": 4,
+            "key": "Space",
+            "kind": "set_variable",
+            "position": [
+              640.0,
+              260.0
+            ],
+            "value": 0.0,
+            "variable": "b",
+            "vector": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "visible": true
+          },
+          {
+            "comparison": "equal",
+            "id": 5,
+            "key": "Space",
+            "kind": "branch",
+            "position": [
+              960.0,
+              24.0
+            ],
+            "value": 0.0,
+            "variable": "c",
+            "vector": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "visible": true
+          },
+          {
+            "comparison": "greater",
+            "id": 6,
+            "key": "Space",
+            "kind": "set_variable",
+            "position": [
+              1280.0,
+              24.0
+            ],
+            "value": 1.0,
+            "variable": "c",
+            "vector": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "visible": true
+          },
+          {
+            "comparison": "greater",
+            "id": 7,
+            "key": "Space",
+            "kind": "set_variable",
+            "position": [
+              1280.0,
+              260.0
+            ],
+            "value": 0.0,
+            "variable": "c",
+            "vector": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "visible": true
+          },
+          {
+            "comparison": "greater",
+            "id": 8,
+            "key": "Space",
+            "kind": "tick",
+            "position": [
+              24.0,
+              620.0
+            ],
+            "value": 1.0,
+            "variable": "",
+            "vector": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "visible": true
+          },
+          {
+            "comparison": "equal",
+            "id": 9,
+            "key": "Space",
+            "kind": "branch",
+            "position": [
+              320.0,
+              620.0
+            ],
+            "value": 1.0,
+            "variable": "b",
+            "vector": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "visible": true
+          },
+          {
+            "comparison": "greater",
+            "id": 10,
+            "key": "Space",
+            "kind": "set_color",
+            "position": [
+              640.0,
+              580.0
+            ],
+            "value": 1.0,
+            "variable": "",
+            "vector": [
+              0.2199999988079071,
+              0.8299999833106995,
+              0.6100000143051147
+            ],
+            "visible": true
+          },
+          {
+            "comparison": "greater",
+            "id": 11,
+            "key": "Space",
+            "kind": "set_color",
+            "position": [
+              640.0,
+              830.0
+            ],
+            "value": 1.0,
+            "variable": "",
+            "vector": [
+              0.10999999940395355,
+              0.15000000596046448,
+              0.17000000178813934
+            ],
+            "visible": true
+          }
+        ]
+      },
+      "id": 7,
+      "mesh": {
+        "alphaCutoff": 0.5,
+        "asset": "cube",
+        "color": [
+          0.10999999940395355,
+          0.15000000596046448,
+          0.17000000178813934,
+          1.0
+        ],
+        "doubleSided": true,
+        "emission": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "emissionStrength": 0.0,
+        "metallic": 0.0,
+        "normalStrength": 1.0,
+        "roughness": 0.699999988079071,
+        "shadow": true,
+        "surface": 0,
+        "textures": [
+          "",
+          "",
+          "",
+          ""
+        ],
+        "unlit": false,
+        "uvOffset": [
+          0.0,
+          0.0
+        ],
+        "uvScale": [
+          1.0,
+          1.0
+        ]
+      },
+      "name": "Switch 2",
+      "parent": 0,
+      "position": [
+        0.0,
+        1.399999976158142,
+        0.20000000298023224
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        2.299999952316284,
+        2.0999999046325684,
+        0.6499999761581421
+      ],
+      "visible": true
+    },
+    {
+      "id": 8,
+      "mesh": {
+        "alphaCutoff": 0.5,
+        "asset": "quad",
+        "color": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "doubleSided": true,
+        "emission": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "emissionStrength": 0.0,
+        "metallic": 0.0,
+        "normalStrength": 1.0,
+        "roughness": 0.44999998807907104,
+        "shadow": false,
+        "surface": 1,
+        "textures": [
+          "Assets/b050ce7c3875d1801add7aa9eb0b5bbe539a07e92ffc00b5487ccdaae6799ae0.png",
+          "",
+          "",
+          ""
+        ],
+        "unlit": true,
+        "uvOffset": [
+          0.0,
+          0.0
+        ],
+        "uvScale": [
+          1.0,
+          1.0
+        ]
+      },
+      "name": "Key 2",
+      "parent": 7,
+      "position": [
+        0.0,
+        5.960464477539063e-08,
+        0.5538461208343506
+      ],
+      "rotation": [
+        -0.0,
+        0.0,
+        -0.0,
+        1.0
+      ],
+      "scale": [
+        0.5652173757553101,
+        0.6190476417541504,
+        1.5384615659713745
+      ],
+      "visible": true
+    },
+    {
+      "id": 9,
+      "mesh": {
+        "alphaCutoff": 0.5,
+        "asset": "cube",
+        "color": [
+          0.10999999940395355,
+          0.15000000596046448,
+          0.17000000178813934,
+          1.0
+        ],
+        "doubleSided": true,
+        "emission": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "emissionStrength": 0.0,
+        "metallic": 0.0,
+        "normalStrength": 1.0,
+        "roughness": 0.44999998807907104,
+        "shadow": false,
+        "surface": 0,
+        "textures": [
+          "",
+          "",
+          "",
+          ""
+        ],
+        "unlit": true,
+        "uvOffset": [
+          0.0,
+          0.0
+        ],
+        "uvScale": [
+          1.0,
+          1.0
+        ]
+      },
+      "name": "Target 2",
+      "parent": 0,
+      "position": [
+        0.0,
+        3.25,
+        0.15000000596046448
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        0.75,
+        0.2800000011920929,
+        0.44999998807907104
+      ],
+      "visible": true
+    },
+    {
+      "behavior": {
+        "enabled": true,
+        "links": [
+          {
+            "from": 1,
+            "output": "next",
+            "to": 2
+          },
+          {
+            "from": 2,
+            "output": "true",
+            "to": 3
+          },
+          {
+            "from": 2,
+            "output": "false",
+            "to": 4
+          },
+          {
+            "from": 3,
+            "output": "next",
+            "to": 5
+          },
+          {
+            "from": 4,
+            "output": "next",
+            "to": 5
+          },
+          {
+            "from": 5,
+            "output": "true",
+            "to": 6
+          },
+          {
+            "from": 5,
+            "output": "false",
+            "to": 7
+          },
+          {
+            "from": 6,
+            "output": "next",
+            "to": 8
+          },
+          {
+            "from": 7,
+            "output": "next",
+            "to": 8
+          },
+          {
+            "from": 8,
+            "output": "true",
+            "to": 9
+          },
+          {
+            "from": 8,
+            "output": "false",
+            "to": 10
+          },
+          {
+            "from": 11,
+            "output": "next",
+            "to": 12
+          },
+          {
+            "from": 12,
+            "output": "true",
+            "to": 13
+          },
+          {
+            "from": 12,
+            "output": "false",
+            "to": 14
+          }
+        ],
+        "nodes": [
+          {
+            "comparison": "greater",
+            "id": 1,
+            "key": "3",
+            "kind": "key_pressed",
+            "position": [
+              24.0,
+              24.0
+            ],
+            "value": 1.0,
+            "variable": "",
+            "vector": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "visible": true
+          },
+          {
+            "comparison": "equal",
+            "id": 2,
+            "key": "Space",
+            "kind": "branch",
+            "position": [
+              320.0,
+              24.0
+            ],
+            "value": 0.0,
+            "variable": "a",
+            "vector": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "visible": true
+          },
+          {
+            "comparison": "greater",
+            "id": 3,
+            "key": "Space",
+            "kind": "set_variable",
+            "position": [
+              640.0,
+              24.0
+            ],
+            "value": 1.0,
+            "variable": "a",
+            "vector": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "visible": true
+          },
+          {
+            "comparison": "greater",
+            "id": 4,
+            "key": "Space",
+            "kind": "set_variable",
+            "position": [
+              640.0,
+              260.0
+            ],
+            "value": 0.0,
+            "variable": "a",
+            "vector": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "visible": true
+          },
+          {
+            "comparison": "equal",
+            "id": 5,
+            "key": "Space",
+            "kind": "branch",
+            "position": [
+              960.0,
+              24.0
+            ],
+            "value": 0.0,
+            "variable": "b",
+            "vector": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "visible": true
+          },
+          {
+            "comparison": "greater",
+            "id": 6,
+            "key": "Space",
+            "kind": "set_variable",
+            "position": [
+              1280.0,
+              24.0
+            ],
+            "value": 1.0,
+            "variable": "b",
+            "vector": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "visible": true
+          },
+          {
+            "comparison": "greater",
+            "id": 7,
+            "key": "Space",
+            "kind": "set_variable",
+            "position": [
+              1280.0,
+              260.0
+            ],
+            "value": 0.0,
+            "variable": "b",
+            "vector": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "visible": true
+          },
+          {
+            "comparison": "equal",
+            "id": 8,
+            "key": "Space",
+            "kind": "branch",
+            "position": [
+              1600.0,
+              24.0
+            ],
+            "value": 0.0,
+            "variable": "c",
+            "vector": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "visible": true
+          },
+          {
+            "comparison": "greater",
+            "id": 9,
+            "key": "Space",
+            "kind": "set_variable",
+            "position": [
+              1920.0,
+              24.0
+            ],
+            "value": 1.0,
+            "variable": "c",
+            "vector": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "visible": true
+          },
+          {
+            "comparison": "greater",
+            "id": 10,
+            "key": "Space",
+            "kind": "set_variable",
+            "position": [
+              1920.0,
+              260.0
+            ],
+            "value": 0.0,
+            "variable": "c",
+            "vector": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "visible": true
+          },
+          {
+            "comparison": "greater",
+            "id": 11,
+            "key": "Space",
+            "kind": "tick",
+            "position": [
+              24.0,
+              620.0
+            ],
+            "value": 1.0,
+            "variable": "",
+            "vector": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "visible": true
+          },
+          {
+            "comparison": "equal",
+            "id": 12,
+            "key": "Space",
+            "kind": "branch",
+            "position": [
+              320.0,
+              620.0
+            ],
+            "value": 1.0,
+            "variable": "c",
+            "vector": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "visible": true
+          },
+          {
+            "comparison": "greater",
+            "id": 13,
+            "key": "Space",
+            "kind": "set_color",
+            "position": [
+              640.0,
+              580.0
+            ],
+            "value": 1.0,
+            "variable": "",
+            "vector": [
+              0.2199999988079071,
+              0.8299999833106995,
+              0.6100000143051147
+            ],
+            "visible": true
+          },
+          {
+            "comparison": "greater",
+            "id": 14,
+            "key": "Space",
+            "kind": "set_color",
+            "position": [
+              640.0,
+              830.0
+            ],
+            "value": 1.0,
+            "variable": "",
+            "vector": [
+              0.10999999940395355,
+              0.15000000596046448,
+              0.17000000178813934
+            ],
+            "visible": true
+          }
+        ]
+      },
+      "id": 10,
+      "mesh": {
+        "alphaCutoff": 0.5,
+        "asset": "cube",
+        "color": [
+          0.10999999940395355,
+          0.15000000596046448,
+          0.17000000178813934,
+          1.0
+        ],
+        "doubleSided": true,
+        "emission": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "emissionStrength": 0.0,
+        "metallic": 0.0,
+        "normalStrength": 1.0,
+        "roughness": 0.699999988079071,
+        "shadow": true,
+        "surface": 0,
+        "textures": [
+          "",
+          "",
+          "",
+          ""
+        ],
+        "unlit": false,
+        "uvOffset": [
+          0.0,
+          0.0
+        ],
+        "uvScale": [
+          1.0,
+          1.0
+        ]
+      },
+      "name": "Switch 3",
+      "parent": 0,
+      "position": [
+        3.0,
+        1.399999976158142,
+        0.20000000298023224
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        2.299999952316284,
+        2.0999999046325684,
+        0.6499999761581421
+      ],
+      "visible": true
+    },
+    {
+      "id": 11,
+      "mesh": {
+        "alphaCutoff": 0.5,
+        "asset": "quad",
+        "color": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "doubleSided": true,
+        "emission": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "emissionStrength": 0.0,
+        "metallic": 0.0,
+        "normalStrength": 1.0,
+        "roughness": 0.44999998807907104,
+        "shadow": false,
+        "surface": 1,
+        "textures": [
+          "Assets/94a364fb5d5e1dbe76e004fd0503695253170fb782df4f693a0cb969706086cd.png",
+          "",
+          "",
+          ""
+        ],
+        "unlit": true,
+        "uvOffset": [
+          0.0,
+          0.0
+        ],
+        "uvScale": [
+          1.0,
+          1.0
+        ]
+      },
+      "name": "Key 3",
+      "parent": 10,
+      "position": [
+        0.0,
+        5.960464477539063e-08,
+        0.5538461208343506
+      ],
+      "rotation": [
+        -0.0,
+        0.0,
+        -0.0,
+        1.0
+      ],
+      "scale": [
+        0.5652173757553101,
+        0.6190476417541504,
+        1.5384615659713745
+      ],
+      "visible": true
+    },
+    {
+      "id": 12,
+      "mesh": {
+        "alphaCutoff": 0.5,
+        "asset": "cube",
+        "color": [
+          0.2199999988079071,
+          0.8299999833106995,
+          0.6100000143051147,
+          1.0
+        ],
+        "doubleSided": true,
+        "emission": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "emissionStrength": 0.0,
+        "metallic": 0.0,
+        "normalStrength": 1.0,
+        "roughness": 0.44999998807907104,
+        "shadow": false,
+        "surface": 0,
+        "textures": [
+          "",
+          "",
+          "",
+          ""
+        ],
+        "unlit": true,
+        "uvOffset": [
+          0.0,
+          0.0
+        ],
+        "uvScale": [
+          1.0,
+          1.0
+        ]
+      },
+      "name": "Target 3",
+      "parent": 0,
+      "position": [
+        3.0,
+        3.25,
+        0.15000000596046448
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        0.75,
+        0.2800000011920929,
+        0.44999998807907104
+      ],
+      "visible": true
+    },
+    {
+      "id": 13,
+      "mesh": {
+        "alphaCutoff": 0.5,
+        "asset": "quad",
+        "color": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "doubleSided": true,
+        "emission": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "emissionStrength": 0.0,
+        "metallic": 0.0,
+        "normalStrength": 1.0,
+        "roughness": 0.44999998807907104,
+        "shadow": false,
+        "surface": 1,
+        "textures": [
+          "Assets/b909fc9ae9bf480a6090b36f082372dc0a867bacc4c1ad5858be6c4ad3749ea6.png",
+          "",
+          "",
+          ""
+        ],
+        "unlit": true,
+        "uvOffset": [
+          0.0,
+          0.0
+        ],
+        "uvScale": [
+          1.0,
+          1.0
+        ]
+      },
+      "name": "Signal Room title",
+      "parent": 0,
+      "position": [
+        0.0,
+        5.199999809265137,
+        0.20000000298023224
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        6.0,
+        1.2000000476837158,
+        1.0
+      ],
+      "visible": true
+    },
+    {
+      "id": 14,
+      "mesh": {
+        "alphaCutoff": 0.5,
+        "asset": "quad",
+        "color": [
+          0.6499999761581421,
+          0.7599999904632568,
+          0.7699999809265137,
+          1.0
+        ],
+        "doubleSided": true,
+        "emission": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "emissionStrength": 0.0,
+        "metallic": 0.0,
+        "normalStrength": 1.0,
+        "roughness": 0.44999998807907104,
+        "shadow": false,
+        "surface": 1,
+        "textures": [
+          "Assets/e5d8d4ca7517a94f022e71bca494ec313ff3f8d45ae67e913ac0c4ad36aebb34.png",
+          "",
+          "",
+          ""
+        ],
+        "unlit": true,
+        "uvOffset": [
+          0.0,
+          0.0
+        ],
+        "uvScale": [
+          1.0,
+          1.0
+        ]
+      },
+      "name": "Target label",
+      "parent": 0,
+      "position": [
+        0.0,
+        4.099999904632568,
+        0.20000000298023224
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        3.0,
+        0.75,
+        1.0
+      ],
+      "visible": true
+    },
+    {
+      "behavior": {
+        "enabled": true,
+        "links": [
+          {
+            "from": 1,
+            "output": "next",
+            "to": 2
+          },
+          {
+            "from": 2,
+            "output": "true",
+            "to": 3
+          },
+          {
+            "from": 2,
+            "output": "false",
+            "to": 7
+          },
+          {
+            "from": 3,
+            "output": "true",
+            "to": 4
+          },
+          {
+            "from": 3,
+            "output": "false",
+            "to": 7
+          },
+          {
+            "from": 4,
+            "output": "true",
+            "to": 5
+          },
+          {
+            "from": 4,
+            "output": "false",
+            "to": 7
+          },
+          {
+            "from": 5,
+            "output": "next",
+            "to": 6
+          },
+          {
+            "from": 7,
+            "output": "next",
+            "to": 8
+          }
+        ],
+        "nodes": [
+          {
+            "comparison": "greater",
+            "id": 1,
+            "key": "Space",
+            "kind": "tick",
+            "position": [
+              24.0,
+              24.0
+            ],
+            "value": 1.0,
+            "variable": "",
+            "vector": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "visible": true
+          },
+          {
+            "comparison": "equal",
+            "id": 2,
+            "key": "Space",
+            "kind": "branch",
+            "position": [
+              300.0,
+              24.0
+            ],
+            "value": 1.0,
+            "variable": "a",
+            "vector": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "visible": true
+          },
+          {
+            "comparison": "equal",
+            "id": 3,
+            "key": "Space",
+            "kind": "branch",
+            "position": [
+              600.0,
+              24.0
+            ],
+            "value": 0.0,
+            "variable": "b",
+            "vector": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "visible": true
+          },
+          {
+            "comparison": "equal",
+            "id": 4,
+            "key": "Space",
+            "kind": "branch",
+            "position": [
+              900.0,
+              24.0
+            ],
+            "value": 1.0,
+            "variable": "c",
+            "vector": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "visible": true
+          },
+          {
+            "comparison": "greater",
+            "id": 5,
+            "key": "Space",
+            "kind": "set_variable",
+            "position": [
+              1200.0,
+              24.0
+            ],
+            "value": 1.0,
+            "variable": "solved",
+            "vector": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "visible": true
+          },
+          {
+            "comparison": "greater",
+            "id": 6,
+            "key": "Space",
+            "kind": "set_visible",
+            "position": [
+              1500.0,
+              24.0
+            ],
+            "value": 1.0,
+            "variable": "",
+            "vector": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "visible": true
+          },
+          {
+            "comparison": "greater",
+            "id": 7,
+            "key": "Space",
+            "kind": "set_variable",
+            "position": [
+              600.0,
+              340.0
+            ],
+            "value": 0.0,
+            "variable": "solved",
+            "vector": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "visible": true
+          },
+          {
+            "comparison": "greater",
+            "id": 8,
+            "key": "Space",
+            "kind": "set_visible",
+            "position": [
+              900.0,
+              340.0
+            ],
+            "value": 1.0,
+            "variable": "",
+            "vector": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "visible": false
+          }
+        ]
+      },
+      "id": 15,
+      "mesh": {
+        "alphaCutoff": 0.5,
+        "asset": "quad",
+        "color": [
+          0.2199999988079071,
+          0.9399999976158142,
+          0.6800000071525574,
+          1.0
+        ],
+        "doubleSided": true,
+        "emission": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "emissionStrength": 0.0,
+        "metallic": 0.0,
+        "normalStrength": 1.0,
+        "roughness": 0.44999998807907104,
+        "shadow": false,
+        "surface": 1,
+        "textures": [
+          "Assets/8f154572a6c037914ceb84c6c26f1c767de8654970bf85ae7c981be191944e2a.png",
+          "",
+          "",
+          ""
+        ],
+        "unlit": true,
+        "uvOffset": [
+          0.0,
+          0.0
+        ],
+        "uvScale": [
+          1.0,
+          1.0
+        ]
+      },
+      "name": "Solved banner",
+      "parent": 0,
+      "position": [
+        0.0,
+        -0.15000000596046448,
+        0.4000000059604645
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        4.0,
+        1.0,
+        1.0
+      ],
+      "visible": false
+    },
+    {
+      "behavior": {
+        "enabled": true,
+        "links": [
+          {
+            "from": 1,
+            "output": "next",
+            "to": 2
+          },
+          {
+            "from": 2,
+            "output": "next",
+            "to": 3
+          },
+          {
+            "from": 3,
+            "output": "next",
+            "to": 4
+          },
+          {
+            "from": 4,
+            "output": "next",
+            "to": 5
+          }
+        ],
+        "nodes": [
+          {
+            "comparison": "greater",
+            "id": 1,
+            "key": "R",
+            "kind": "key_pressed",
+            "position": [
+              24.0,
+              24.0
+            ],
+            "value": 1.0,
+            "variable": "",
+            "vector": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "visible": true
+          },
+          {
+            "comparison": "greater",
+            "id": 2,
+            "key": "Space",
+            "kind": "set_variable",
+            "position": [
+              300.0,
+              24.0
+            ],
+            "value": 0.0,
+            "variable": "a",
+            "vector": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "visible": true
+          },
+          {
+            "comparison": "greater",
+            "id": 3,
+            "key": "Space",
+            "kind": "set_variable",
+            "position": [
+              600.0,
+              24.0
+            ],
+            "value": 0.0,
+            "variable": "b",
+            "vector": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "visible": true
+          },
+          {
+            "comparison": "greater",
+            "id": 4,
+            "key": "Space",
+            "kind": "set_variable",
+            "position": [
+              900.0,
+              24.0
+            ],
+            "value": 0.0,
+            "variable": "c",
+            "vector": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "visible": true
+          },
+          {
+            "comparison": "greater",
+            "id": 5,
+            "key": "Space",
+            "kind": "set_variable",
+            "position": [
+              1200.0,
+              24.0
+            ],
+            "value": 0.0,
+            "variable": "solved",
+            "vector": [
+              0.0,
+              1.0,
+              0.0
+            ],
+            "visible": true
+          }
+        ]
+      },
+      "id": 16,
+      "name": "Reset logic",
+      "parent": 0,
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "visible": true
+    }
+  ],
+  "mode": "3d",
+  "name": "Signal Room",
+  "rayTracedShadows": false,
+  "schema": 1,
+  "shadows": true,
+  "variables": {
+    "a": 0.0,
+    "b": 0.0,
+    "c": 0.0,
+    "solved": 0.0
+  },
+  "view": {
+    "distance": 14.0,
+    "pitch": 0.13962633907794952,
+    "target": [
+      0.0,
+      2.200000047683716,
+      0.0
+    ],
+    "yaw": 0.0
+  }
+}

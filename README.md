@@ -6,8 +6,9 @@ A **native Windows engine/editor preview**, implemented in C++20 with D3D12 GPU 
 Jolt physics, an EnTT scene model, budgeted disk caching, and an asynchronous AI assistant with
 OpenAI-compatible chat endpoints and **Ollama** fallback.
 
-The second native preview adds textured materials, instancing, mesh LODs, spotlights and optional
-hardware-ray-traced directional shadows. This is not the completed v1.0 roadmap;
+The control preview adds **60 MCP tools**, live scene/class/logic graphs, executable gameplay
+behaviors, numeric variables and saved game cameras to the textured/DXR graphics preview.
+This is not the completed v1.0 roadmap;
 the implemented features and current limits below describe what is actually available.
 
 This is **not** a Unity/Unreal clone. The goal is a lean, understandable, genuinely fast engine
@@ -22,7 +23,7 @@ where you can author a 3D or 2D scene, script it, and ship a standalone build.
 | 1 | **Measured GPU acceleration** | GPU rendering with optional accelerated culling/skinning/particles. CPU-authoritative gameplay and physics; transfers, synchronization and memory are included in performance decisions. |
 | 2 | **Low-end first** | Separate provisional iGPU and 2 GB discrete-GPU profiles. Actual minimum hardware and frame-time gates must be confirmed before implementation commitments. |
 | 3 | **Smart caching** | Dependency-aware asset cache, shader/driver-specific PSO caches, fence-safe GPU residency and scoped AI response caching. All are bounded; only disk artifacts persist. |
-| 4 | **Optional AI integration** | Verified Chat Completions endpoints and native Ollama, asynchronous streaming, clear capability/resource limits. Basic editor chat first; tools and runtime NPC AI later. |
+| 4 | **Optional AI integration** | Native chat plus an opt-in MCP control adapter for external clients. Capability/revision/path limits are explicit; runtime NPC AI remains future work. |
 | 5 | **Understandable** | No mega-abstractions. Explicit data flow, explicit memory, readable render graph. |
 
 ## Documents
@@ -34,21 +35,22 @@ Read them in this order:
 3. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - *how* it is built: layers, subsystems, data flow.
 4. [docs/MILESTONES.md](docs/MILESTONES.md) - the phased delivery roadmap (M0 -> M26).
 5. [docs/adr/README.md](docs/adr/README.md) - **open decisions we still need to discuss.**
+6. [docs/MCP.md](docs/MCP.md) - external-editor control, all tools, graph semantics and safety limits.
 
 ## Status
 
 | | |
 |---|---|
-| Phase | **Graphics preview: v0.1.0-preview.2** |
+| Phase | **MCP and graph control preview: v0.1.0-preview.3** |
 | Build | Windows x64, C++20, CMake, MSVC 2022/2026; Debug and Release |
 | Applications | Native scene editor and standalone game runtime |
-| Validation | Eleven CTest groups in Debug/Release; Release graphics/export tests on NVIDIA/Intel/WARP; desktop/small-window captures |
+| Validation | Fourteen native test groups; official-SDK MCP authoring/import/play/graph/capture/export workflows; read-only and concurrent-client checks |
 | Scope | Partial implementations across the roadmap, not completion of every M0-M23 gate |
 
 The roadmap has 27 work packages, not 27 mandatory blockers before a playable result. The first
 release gate combines scene authoring, scripting, physics, basic lighting/audio, bounded caches,
 early AI chat (M18.A) and a standalone sample (M23.A). Basic v1.0 adds 2D, UI and production
-workflows. Advanced GPU-driven rendering, GI, AI scene tools, material graphs and Vulkan remain
+workflows. Advanced GPU-driven rendering, GI, material/shader graphs and Vulkan remain
 separately gated. The current preview already exercises authoring, GPU rendering, physics,
 AI chat and standalone export, while full low-end performance acceptance remains unverified.
 
@@ -69,6 +71,13 @@ AI chat and standalone export, while full low-end performance acceptance remains
   undo/redo. Play/stop restores canonical authored scene data, not raw GPU/physics handles.
   Unchanged scene extraction and undo snapshots are reused instead of serialized every idle frame.
 - Fixed-step Jolt physics for primitive static/dynamic bodies, rotation behavior and keyboard drive.
+- Persisted numeric variables and executable behavior graphs: Begin Play/Tick/key events,
+  translation/rotation, physics velocity, variable operations, branches, visibility and material color.
+- Native graph canvases for editable hierarchy relationships, component classes and executable
+  logic, with saved node layout, undo and live execution highlighting. Not Unreal Blueprint compatibility.
+- Official-SDK MCP stdio adapter with 60 strict tools, nine resources and an authoring prompt.
+  Scene edits are atomic/revision-checked, files are workspace-restricted, and native control is
+  opt-in through a current-Windows-user-only pipe. External clients can author, test and export games.
 - Background import of static self-contained GLB geometry, copied into project-relative assets,
   with hashed cooked-geometry reuse. Geometry imports retain node transforms.
 - Background image import through DirectXTex, with linear-light sRGB mip generation, linear data
@@ -77,19 +86,20 @@ AI chat and standalone export, while full low-end performance acceptance remains
 - Cached DXC bytecode, integrity-checked disk entries, LRU eviction, TTL for AI results, and visible
   GPU/draw/cache counters. The preview uses Windows SHA-256 rather than the proposed BLAKE3.
 - Asynchronous SSE/NDJSON chat, exact-response caching, provider fallback and cross-thread cancel.
-  Context inclusion is opt-in; keys use Windows Credential Manager. No AI edits or tools execute.
+  Context inclusion is opt-in; keys use Windows Credential Manager. The built-in chat is read-only;
+  external MCP clients can use the separately enabled authoring tools.
 - Standalone folder export with a file whitelist, dependency notices and SHA-256 manifest checks.
   Existing nonempty output folders are rejected rather than overwritten.
 
 ## Run
 
 ```powershell
-.\tools\build.ps1 -Configuration Release -BuildDirectory out/build-next -Test -Run
+.\tools\build.ps1 -Configuration Release -BuildDirectory out/build-control -Test -Run
 ```
 
 The editor opens a ready-to-edit workshop scene. This workspace's new preview is isolated from
-the original build in [out/build-next/Release/VelosEditor.exe](out/build-next/Release/VelosEditor.exe)
-and [out/build-next/Release/VelosRuntime.exe](out/build-next/Release/VelosRuntime.exe).
+the original builds in [out/build-control/Release/VelosEditor.exe](out/build-control/Release/VelosEditor.exe)
+and [out/build-control/Release/VelosRuntime.exe](out/build-control/Release/VelosRuntime.exe).
 The scripts default to `out/build` when `-BuildDirectory` is omitted.
 
 Saved samples:
@@ -102,11 +112,14 @@ Saved samples:
   shadow policy; automatically uses raster shadows when DXR is unavailable.
 - [samples/graphics-lab/spotlight.velos](samples/graphics-lab/spotlight.velos): overhead spotlight
   with a soft cone edge. Local-light shadow maps are not implemented.
+- [samples/signal-room/scene.velos](samples/signal-room/scene.velos): a complete small puzzle
+  authored/tested/exported through MCP, with executable switch graphs and a visible solved state.
+  [Sample controls and screenshots](samples/signal-room/README.md).
 
 ```powershell
-.\out\build-next\Release\VelosEditor.exe --scene=samples/graphics-lab/scene.velos
-.\out\build-next\Release\VelosRuntime.exe --scene=samples/graphics-lab/ray-shadows.velos
-.\tools\package.ps1 -BuildDirectory out/build-next -Scene samples/graphics-lab/scene.velos
+.\out\build-control\Release\VelosEditor.exe --scene=samples/signal-room/scene.velos
+.\out\build-control\Release\VelosRuntime.exe --scene=samples/signal-room/scene.velos
+.\tools\package.ps1 -BuildDirectory out/build-control -Scene samples/signal-room/scene.velos
 ```
 
 The Export command saves the scene and builds into an empty folder you choose. Run the exported
@@ -127,6 +140,25 @@ and requires a physical DXR 1.1 / Shader Model 6.5 adapter; the normal path rema
 - `Ctrl+D`: duplicate selected entity; `Delete`: delete; hierarchy drag/drop reparents objects.
 - During Play, `WASD` drives objects with Keyboard Drive. The workshop sphere has it enabled.
 - Play/Pause/Step/Stop control simulation. Stop restores the authored scene. `Escape` exits runtime.
+- Graphs > Scene/Classes/Logic exposes live node canvases. Drag execution links, edit node fields,
+  use the Variables popup, and navigate with middle-drag/Alt-drag and the minimap.
+
+## MCP Setup
+
+```powershell
+npm ci --prefix tools/mcp --ignore-scripts
+.\tools\mcp-smoke.ps1 -BuildDirectory out/build-control -Adapter nvidia -Compact
+```
+
+[.vscode/mcp.json](.vscode/mcp.json) registers `velos-engine` for VS Code. Start it from **MCP:
+List Servers** after building. It launches an isolated native editor on first tool use. Other
+editors can use the same local stdio adapter; explicit attach/read-only configurations and all
+60 tool descriptions are in [docs/MCP.md](docs/MCP.md). Node.js 22+ is required for MCP, not for
+playing exported games. Basic MCP authoring does not depend on Ollama or a cloud account.
+
+Automation covers the engine's implemented scene/material/light/physics/graph features, not
+unimplemented audio, skeletal animation, terrain or multiplayer. It excludes arbitrary shell/code
+execution and credentials. The built-in assistant and external MCP clients are separate clients.
 
 ## AI setup
 
@@ -178,29 +210,30 @@ Requires Windows x64, Visual Studio 2022/2026 with Desktop development with C++,
 the Windows SDK. The first configure downloads dependencies at immutable commit hashes.
 
 ```powershell
-.\tools\build.ps1 -Configuration Debug -BuildDirectory out/build-next -Test
+.\tools\build.ps1 -Configuration Debug -BuildDirectory out/build-control -Test
 ```
 
 The script locates Visual Studio's bundled CMake without changing your global PATH. Dependencies
 are pinned in [cmake/Dependencies.cmake](cmake/Dependencies.cmake); the C runtime is linked
 statically, and SDK DXC binaries and third-party notices are copied alongside the applications.
-Node.js is optional for building the engine but required for the local HTTP integration test.
+Node.js is optional for building the engine but required for the HTTP integration test and MCP adapter.
 
 ```powershell
-.\tools\smoke.ps1 -Configuration Release -BuildDirectory out/build-next -Adapter auto
-.\tools\graphics-smoke.ps1 -BuildDirectory out/build-next -Adapter nvidia -RequireRayTracing
-.\tools\graphics-smoke.ps1 -BuildDirectory out/build-next -Adapter intel
-.\tools\graphics-smoke.ps1 -BuildDirectory out/build-next -Adapter warp
-.\out\build-next\Release\velos_ai_probe.exe qwen2.5-coder:1.5b
+.\tools\smoke.ps1 -Configuration Release -BuildDirectory out/build-control -Adapter auto
+.\tools\graphics-smoke.ps1 -BuildDirectory out/build-control -Adapter nvidia -RequireRayTracing
+.\tools\mcp-smoke.ps1 -BuildDirectory out/build-control -Adapter warp
+.\out\build-control\Release\velos_ai_probe.exe qwen2.5-coder:1.5b
 ```
 
 Tests cover the clock, scene/undo, cache/files, GLB import, physics, AI protocols, real loopback
-WinHTTP/credentials, packaging, texture color spaces/mips, draw planning and light/ray transforms.
+WinHTTP/credentials, packaging, texture color spaces/mips, draw planning, light/ray transforms,
+atomic automation, private IPC and behavior graph validation/execution.
 Graphics smoke checks generate fresh fixtures, assert the actual shadow path, compare instanced
 and unbatched images, check ray/LOD self-shadowing, compare source and exported scenes, and exercise
 play restoration and resizing. All GPU warnings/errors fail the run. Captures and JSON reports
 are generated under `out/validation`; each graphics run uses a new directory.
-The Windows CI workflow is configured but has not run remotely because this repository is local.
+The Windows CI workflow also includes the Release WARP MCP workflow. Remote CI results are
+reported separately from local validation; this repository is published under ShubhamBrody.
 
 ## Development measurements
 
@@ -246,8 +279,9 @@ checks; those results do not establish performance on all low-end hardware.
   Image maps are assigned separately. The image cooker supports PNG/JPEG/BMP/TIFF/TGA/DDS within
   bounded 2D limits; HDR environment maps, BC6H/BC7, alpha-coverage mips and virtual texturing remain ahead.
 - The 2D sample proves orthographic/unlit geometry, not a complete sprite/tilemap/Box2D/UI pipeline.
-- C# scripting/hot reload, audio, prefabs, animation, game UI, full reflection and custom gameplay
-  authoring tools remain ahead. Current gameplay behaviors are native C++ components.
+- C# scripting/hot reload, audio, prefabs, animation, full game UI and source reflection remain
+  ahead. Native gameplay graphs are implemented, but not Unreal-compatible Blueprints, a general
+  dataflow/function system, collision events or arbitrary script execution.
 - Rendering uses explicit passes, CPU frustum culling and GPU graphics shaders. A full render graph,
   compute/indirect or occlusion culling, bindless paths, IBL/GI, reflection probes, SSAO/SSR,
   FXAA/TAA, bloom and predictive VRAM streaming remain ahead. Transparency blends after per-object

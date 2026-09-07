@@ -94,6 +94,8 @@ add_executable(velos_ai_probe tools/ai_probe.cpp)
 target_link_libraries(velos_ai_probe PRIVATE velos_ai)
 add_executable(velos_graphics_fixture tools/graphics_fixture.cpp)
 target_link_libraries(velos_graphics_fixture PRIVATE velos_scene velos_texture)
+add_executable(velos_mcp_assets tools/mcp_assets.cpp)
+target_link_libraries(velos_mcp_assets PRIVATE velos_platform gdiplus)
 
 include(CTest)
 if(BUILD_TESTING)

@@ -42,6 +42,14 @@ production security audit or clean-machine distribution gate has been completed.
 
 ## Open decisions - the discussion agenda
 
+The control preview uses the official MCP SDK over stdio with a current-user-only Windows pipe,
+not a hand-written MCP protocol or a remotely exposed HTTP service. This keeps existing scene
+ownership/undo validation authoritative and gives external editors a strict discoverable API.
+Imnodes supplies the native visual canvas. Gameplay graphs are deliberately acyclic/bounded,
+persisted scene data, and execute through a native runtime shared with exported games. They do
+not select or replace OD-04's future general scripting runtime. See [../MCP.md](../MCP.md) for
+the exact capability and trust boundaries.
+
 Ordered by how soon they block work.
 
 | ID | Decision | Blocks | Options | Leaning |

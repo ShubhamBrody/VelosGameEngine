@@ -1,0 +1,14 @@
+{
+  "servers": {
+    "velos-engine": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "${workspaceFolder}/tools/mcp/server.mjs",
+        "--editor=${workspaceFolder}/out/build-control/Release/VelosEditor.exe",
+        "--root=${workspaceFolder}",
+        "--pipe=velos-vscode"
+      ]
+    }
+  }
+}

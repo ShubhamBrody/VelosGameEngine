@@ -46,6 +46,12 @@ void Editor::enableAutomation(const std::string& pipe, const std::filesystem::pa
     if (control_) { throw Error("already_enabled", "Editor automation is already enabled."); }
     automationRoot_ = std::filesystem::canonical(root);
     automationReadOnly_ = readOnly;
+    if (!scenePath_.empty()) {
+        const auto path = std::filesystem::absolute(scenePath_).lexically_normal();
+        static_cast<void>(automationPath(utf8(path.lexically_relative(automationRoot_).generic_wstring()), ".velos"));
+        prepareAutomationAssets(scene_, path.parent_path());
+        scenePath_ = path;
+    }
     control_ = std::make_unique<automation::ControlPipe>(pipe, [window = window_] { PostMessageW(window, WM_APP + 37, 0, 0); });
     log("MCP control enabled: " + pipe + (readOnly ? " (read only)" : " (current Windows user)"));
 }
@@ -510,15 +516,24 @@ nlohmann::json Editor::automationRequest(std::string_view method, const Json& pa
     }
     if (method == "camera.get") { only(params, {}); return cameraData(frame_.camera); }
     if (method == "camera.set") {
-        only(params, {"target", "yaw_degrees", "pitch_degrees", "distance"});
+        only(params, {"target", "yaw_degrees", "pitch_degrees", "distance", "save_to_scene", "expected_revision"});
         if (automationReadOnly_) { throw Error("read_only", "This control session is read-only."); }
         auto camera = frame_.camera;
         if (params.contains("target")) { camera.target = position(params.at("target")); }
         camera.yaw = DirectX::XMConvertToRadians(number(params, "yaw_degrees", DirectX::XMConvertToDegrees(camera.yaw), -36000,36000));
         camera.pitch = DirectX::XMConvertToRadians(number(params, "pitch_degrees", DirectX::XMConvertToDegrees(camera.pitch), -84,84));
         camera.distance = number(params,"distance",camera.distance,0.3f,180);
+        if (params.value("save_to_scene",false)) {
+            requireAutomationEdit(params);
+            automationRequest("scene.settings",{{"expected_revision",params.at("expected_revision")},{"fields",{{"view",{
+                {"target",{camera.target.x,camera.target.y,camera.target.z}},{"yaw",camera.yaw},{"pitch",camera.pitch},{"distance",camera.distance}
+            }}}}});
+        }
         frame_.camera = camera;
-        return cameraData(camera);
+        auto result = cameraData(camera);
+        result["revision"] = std::to_string(scene_.revision());
+        result["saved_to_scene"] = params.value("save_to_scene",false);
+        return result;
     }
     if (method.starts_with("simulation.")) {
         if (method == "simulation.step") { only(params,{"steps"}); }

@@ -43,6 +43,13 @@ The baseline shader path remains SM 6.0; the optional ray-query pixel variant re
 queried DXR 1.1 and SM 6.5 on a physical adapter. It supplies directional hard shadows, not GI or
 reflections. All 214 requirement IDs remain unchanged; partial implementation is not full acceptance.
 
+The control checkpoint `v0.1.0-preview.3` adds external MCP authoring and native behavior graphs
+as partial editor/AI-tool/simulation delivery. [MCP.md](MCP.md) defines the 60-tool contract,
+read-only/revision/path constraints, supported graph events/actions and unsupported capabilities.
+The existing requirement IDs stay stable: MCP does not complete RAG/embeddings, C# hosting,
+material/shader graphs or the full game-engine roadmap. Native graph tests and official-SDK
+editor/import/simulation/export tests are evidence for this subset, not blanket acceptance.
+
 ## 2. System context
 
 ```mermaid

@@ -213,7 +213,7 @@ SceneEdit prepareSceneEdit(const Scene& scene, const Json& request) {
         } else if (kind == "settings") {
             keys(operation, {"op", "fields"});
             const auto& fields = operation.at("fields");
-            keys(fields, {"name", "ambient", "shadows", "rayTracedShadows", "mode", "variables"});
+            keys(fields, {"name", "ambient", "shadows", "rayTracedShadows", "mode", "variables", "view"});
             for (const auto& field : fields.items()) {
                 if (field.key() == "variables") {
                     if (!field.value().is_object()) { throw Error("invalid_arguments", "Variable changes must be an object."); }

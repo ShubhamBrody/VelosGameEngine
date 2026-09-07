@@ -87,6 +87,12 @@ complete the first-playable release gate: C# scripting and audio are still missi
 full HDR post-processing, streaming, animation, game UI and the complete 2D toolchain also remain
 outside this checkpoint. See [MILESTONES.md](MILESTONES.md) for partial evidence and remaining work.
 
+The subsequent `v0.1.0-preview.3` control checkpoint adds official-SDK MCP scene/game authoring,
+executable native behavior graphs, variables and a small complete puzzle sample. External editors
+can operate all currently implemented authoring surfaces within explicit capability, revision,
+path and permission boundaries. This does not imply audio/animation/terrain/networking support
+or Unreal Blueprint compatibility. The API contract and tested workflow are in [MCP.md](MCP.md).
+
 ### 4.4 User scenarios
 
 | ID | Priority | Given / When / Then |

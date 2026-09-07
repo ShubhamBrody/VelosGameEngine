@@ -92,6 +92,12 @@ void testHistory() {
 }
 
 void testMaterials() {
+    velos::Scene viewScene;
+    viewScene.gameView = velos::SceneView{{2,3,4},0.2f,0.3f,18};
+    velos::Scene viewCopy;
+    std::string viewError;
+    require(viewCopy.deserialize(viewScene.serialize(),viewError) && viewCopy.gameView && viewCopy.gameView->target.x == 2 && viewCopy.gameView->distance == 18,
+        "Authored runtime cameras must round trip.");
     velos::Scene scene;
     const auto id = scene.addPrimitive("cube");
     auto& material = *scene.get<velos::MeshRenderer>(id);

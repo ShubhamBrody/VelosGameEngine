@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <atomic>
 #include <map>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -63,6 +64,13 @@ struct KeyboardDrive {
     float speed = 4.0f;
 };
 
+struct SceneView {
+    DirectX::XMFLOAT3 target{0,1,0};
+    float yaw = 0.65f;
+    float pitch = 0.42f;
+    float distance = 12;
+};
+
 class Scene {
 public:
     Scene() = default;
@@ -77,6 +85,7 @@ public:
     bool rayTracedShadows = false;
     bool twoDimensional = false;
     std::map<std::string, double> variables;
+    std::optional<SceneView> gameView;
 
     EntityId create(std::string name);
     EntityId addPrimitive(std::string mesh, std::string name = {});

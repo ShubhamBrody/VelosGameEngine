@@ -38,7 +38,8 @@ const fields = object({
   spin: z.number().min(-3600).max(3600).nullable().optional(), keyboardDrive: z.number().min(0.1).max(100).nullable().optional(), behavior: graph.nullable().optional()
 });
 const settings = object({ name: z.string().min(1).max(128).optional(), mode: z.enum(['2d', '3d']).optional(),
-  ambient: z.number().min(0).max(4).optional(), shadows: z.boolean().optional(), rayTracedShadows: z.boolean().optional(), variables: variableValues.optional() });
+  ambient: z.number().min(0).max(4).optional(), shadows: z.boolean().optional(), rayTracedShadows: z.boolean().optional(), variables: variableValues.optional(),
+  view: object({ target: vector, yaw: z.number().min(-1000).max(1000), pitch: z.number().min(-1.48).max(1.48), distance: z.number().min(0.3).max(180) }).nullable().optional() });
 const transform = { entity: reference, space: z.enum(['local', 'world']).optional(), position: vector.optional(),
   rotation_degrees: vector.optional(), scale: vector.optional(), translate: vector.optional(), rotate_degrees: vector.optional(), scale_factor: vector.optional() };
 const create = { name: z.string().min(1).max(128).optional(), primitive: text.optional(), fields: fields.optional(), as: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/).optional() };
@@ -119,8 +120,9 @@ add('editor.graph', 'Open the live Scene, Classes or Logic node canvas in the na
 });
 add('editor.focus', 'Focus a native editor panel or docked tab without changing the authored scene.', { panel: z.enum(['Viewport','Graphs','Scene','Inspector','Assets','Performance','Console','Assistant']) });
 add('camera.get', 'Read the editor viewport camera, target, orbit angles, distance and mode.', {}, true);
-add('camera.set', 'Set the viewport camera target, orbit angles and distance. To switch 2D/3D mode, update scene settings.', {
-  target: vector.optional(), yaw_degrees: z.number().min(-36000).max(36000).optional(), pitch_degrees: z.number().min(-84).max(84).optional(), distance: z.number().min(0.3).max(180).optional()
+add('camera.set', 'Set the viewport camera. save_to_scene:true plus expected_revision also stores this camera undoably for exported games; normal navigation is not persisted. To switch 2D/3D mode, update scene settings.', {
+  target: vector.optional(), yaw_degrees: z.number().min(-36000).max(36000).optional(), pitch_degrees: z.number().min(-84).max(84).optional(), distance: z.number().min(0.3).max(180).optional(),
+  save_to_scene: z.boolean().optional(), expected_revision: revision.optional()
 });
 add('simulation.state', 'Read Play/Pause state, fixed timestep, body count and scene revision.', {}, true);
 add('simulation.play', 'Start or resume the real Jolt/gameplay simulation. Stop restores the authored snapshot. Invalid physics configurations fail explicitly.');

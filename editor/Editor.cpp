@@ -883,6 +883,10 @@ bool Editor::saveScene(bool choosePath) {
         auto destination = scenePath_;
         if (choosePath || destination.empty()) { destination = chooseScenePath(true); }
         if (destination.empty()) { return false; }
+        if (control_) {
+            destination = std::filesystem::absolute(destination).lexically_normal();
+            static_cast<void>(automationPath(utf8(destination.lexically_relative(automationRoot_).generic_wstring()), ".velos"));
+        }
         if (!scenePath_.empty() && destination.parent_path() != scenePath_.parent_path()) {
             for (const auto& reference : scene_.assetReferences()) {
                 const auto source = projectAssetPath(scenePath_.parent_path(), reference);
@@ -909,6 +913,8 @@ bool Editor::saveScene(bool choosePath) {
 bool Editor::openScene(const std::filesystem::path& path) {
     try {
         if (import_.valid() || textureImport_.valid() || controlWork_.valid()) { throw std::runtime_error("Wait for the current import or automation job before opening another project."); }
+        const auto resolvedPath = std::filesystem::absolute(path).lexically_normal();
+        if (control_) { static_cast<void>(automationPath(utf8(resolvedPath.lexically_relative(automationRoot_).generic_wstring()), ".velos")); }
         Scene candidate;
         std::string error;
         if (!candidate.deserialize(readText(path), error)) { throw std::runtime_error(error); }
@@ -934,7 +940,13 @@ bool Editor::openScene(const std::filesystem::path& path) {
         assistant_.clearConversation();
         scene_ = std::move(candidate);
         frame_.camera.set2D(scene_.twoDimensional);
-        scenePath_ = path;
+        if (scene_.gameView) {
+            frame_.camera.target = scene_.gameView->target;
+            frame_.camera.yaw = scene_.gameView->yaw;
+            frame_.camera.pitch = scene_.gameView->pitch;
+            frame_.camera.distance = scene_.gameView->distance;
+        }
+        scenePath_ = resolvedPath;
         savedState_ = scene_.serialize();
         selected_ = scene_.entities().empty() ? 0 : scene_.entities().front();
         history_.clear();

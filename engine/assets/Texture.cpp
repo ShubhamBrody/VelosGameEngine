@@ -6,6 +6,7 @@
 #include <DirectXTex.h>
 
 #include <algorithm>
+#include <bit>
 #include <cctype>
 #include <cstring>
 #include <stdexcept>
@@ -143,7 +144,8 @@ std::vector<std::byte> cookTexture(std::span<const std::byte> source, std::strin
     }
     const auto format = isColor(settings.slot) ? DXGI_FORMAT_R8G8B8A8_UNORM_SRGB : DXGI_FORMAT_R8G8B8A8_UNORM;
     if (!rgba.OverrideFormat(format)) { throw std::runtime_error("Cannot assign the texture color space."); }
-    const auto filter = static_cast<TEX_FILTER_FLAGS>(TEX_FILTER_BOX | TEX_FILTER_FORCE_NON_WIC);
+    const auto mipFilter = std::has_single_bit(metadata.width) && std::has_single_bit(metadata.height) ? TEX_FILTER_BOX : TEX_FILTER_LINEAR;
+    const auto filter = static_cast<TEX_FILTER_FLAGS>(mipFilter | TEX_FILTER_FORCE_NON_WIC);
     auto width = metadata.width;
     auto height = metadata.height;
     while (width > settings.maximumDimension || height > settings.maximumDimension) {
@@ -158,7 +160,7 @@ std::vector<std::byte> cookTexture(std::span<const std::byte> source, std::strin
     ScratchImage chain;
     checkTexture(GenerateMipMaps(*rgba.GetImage(0,0,0), filter, 0, chain), "Generate texture mips");
     ScratchImage compressed;
-    if (settings.compress && width >= 4 && height >= 4) {
+    if (settings.compress && width >= 4 && height >= 4 && width % 4 == 0 && height % 4 == 0) {
         const auto compressedFormat = isColor(settings.slot) ? DXGI_FORMAT_BC3_UNORM_SRGB
             : settings.slot == TextureSlot::Normal ? DXGI_FORMAT_BC5_UNORM : DXGI_FORMAT_BC1_UNORM;
         checkTexture(Compress(chain.GetImages(), chain.GetImageCount(), chain.GetMetadata(), compressedFormat,
@@ -177,7 +179,7 @@ TextureData loadTexture(const std::filesystem::path& path, const TextureImportSe
 }
 
 TextureData loadTexture(std::span<const std::byte> source, std::string extension, const TextureImportSettings& settings, DiskCache& cache) {
-    const auto key = sha256("velos-texture-v1-dxt-6c235c3:" + sha256(source) + ":" + extension
+    const auto key = sha256("velos-texture-v2-dxt-6c235c3:" + sha256(source) + ":" + extension
         + ":" + std::to_string(static_cast<std::uint32_t>(settings.slot)) + ":" + std::to_string(settings.maximumDimension)
         + ":" + (settings.compress ? "bc" : "rgba"));
     if (const auto cached = cache.get(key)) {

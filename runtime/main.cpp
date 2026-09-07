@@ -103,6 +103,12 @@ int main(int argc, char** argv) {
         frame.lods = lods;
         velos::FrameMetrics metrics;
         frame.camera.set2D(scene.twoDimensional);
+        if (scene.gameView) {
+            frame.camera.target = scene.gameView->target;
+            frame.camera.yaw = scene.gameView->yaw;
+            frame.camera.pitch = scene.gameView->pitch;
+            frame.camera.distance = scene.gameView->distance;
+        }
         frame.objects.reserve(scene.entities().size());
         window.inputHandler = [&](HWND, UINT message, WPARAM wparam, LPARAM) -> LRESULT {
             if (message == WM_MOUSEWHEEL) { frame.camera.zoom(static_cast<float>(GET_WHEEL_DELTA_WPARAM(wparam)) / WHEEL_DELTA); return 1; }

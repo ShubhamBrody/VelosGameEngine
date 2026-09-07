@@ -699,6 +699,26 @@ Full list and context in [adr/README.md](adr/README.md). The ones that block ear
 
 ## 19. Source references and verification status
 
+### Implemented control adapter
+
+The 2026-09-07 control preview adds `tools/mcp` (official SDK 1.30.0/Zod 4.5.4) as a local stdio
+adapter. Strict tool schemas route to a private Windows named pipe; no arbitrary shell or network
+listener is exposed. Four pipe workers parse bounded frames and queue requests; only the editor
+main thread invokes scene/control operations. Scene edits prepare a validated candidate, check
+revision and undo budgets, prepare assets, then commit one history transaction. Files stay under
+an explicit automation root, and read-only restrictions exist at both layers.
+
+The scene owns `BehaviorGraph`, numeric variables and an optional authored game view without
+renderer handles. `BehaviorRuntime` compiles per-owner graph lookup data on Play and executes
+bounded acyclic event/action paths through the scene and physics APIs. Stop restores the authored
+snapshot. Editor and standalone runtime share this execution. The imnodes panel edits the same
+graph schema; positions persist and recent execution is observable. This is component composition
+and native gameplay logic, not Unreal Blueprint/C++ class reflection or a material shader graph.
+
+The MCP reference [MCP.md](MCP.md) owns endpoint coverage, resource URIs, trust boundaries,
+cancellation/failure semantics and graph limits. Signal Room demonstrates a complete small
+game authored through this adapter; broader engine systems remain individually gated.
+
 Consulted on 2026-09-06 for the proposal:
 - [Direct3D hardware feature levels](https://learn.microsoft.com/en-us/windows/win32/direct3d12/hardware-feature-levels): feature level, shader model and optional capabilities are distinct.
 - [Ollama embedding API](https://docs.ollama.com/api/embed): native embedding requests use `/api/embed`.

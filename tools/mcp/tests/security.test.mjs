@@ -43,6 +43,17 @@ try {
   const attempt = await client.callTool({ name: 'velos_entity_create',arguments: { expected_revision: status.revision,primitive: 'cube' } });
   assert.equal(attempt.isError,true);
   assert.ok((await client.readResource({ uri: 'velos://capabilities' })).contents[0].text.includes('not_exposed'));
+  const initialScene = await new Promise((resolve,reject) => {
+    const outside = spawn(binary,[`--scene=${path.join(repo,'samples/workshop/scene.velos')}`,`--control-pipe=velos-boundary-${process.pid}`,
+      `--automation-root=${root}`,'--frames=1','--isolated','--no-debug-gpu'],{ cwd: root,windowsHide: true });
+    let output = '';
+    outside.stdout.on('data',chunk => { output += chunk.toString(); });
+    outside.stderr.on('data',chunk => { output += chunk.toString(); });
+    outside.on('error',reject);
+    outside.on('exit',code => resolve({ code,output }));
+  });
+  assert.notEqual(initialScene.code,0,'Automation must not start with an existing scene outside its root.');
+  assert.ok(!initialScene.output.includes('VELOS_CONTROL_READY'),'An out-of-root scene must be rejected before publishing the control endpoint.');
   console.log('PASS: native and MCP read-only enforcement, workspace path restrictions and capability disclosure.');
 } finally {
   await client.close();

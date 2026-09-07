@@ -27,6 +27,28 @@ estimates depend on developer capacity, experience and hardware availability, wh
 
 ## Release route and partial gates
 
+### MCP and graph checkpoint: 2026-09-07
+
+`v0.1.0-preview.3` adds external-editor control and native visual gameplay authoring. The core
+implementation checkpoint is `9cf46be`, followed by the tested sample/documentation increment.
+
+- 60 official-SDK MCP tools cover implemented scene/component data, generation, transforms,
+  imports, save/open, undo, variables, behavior graphs, simulation/input, camera/render settings,
+  actual GPU capture and verified runtime export. Nine resources and one prompt support clients.
+- Opt-in current-user Windows pipes, main-thread scene dispatch, strict bounded JSON,
+  workspace paths, read-only enforcement, explicit discard/overwrite and revision conflict checks.
+- Scene/Classes/Logic graph canvases, persisted layout, numeric variables and eleven native
+  executable node types with acyclic/bounded execution and physics ownership validation.
+- Saved game-camera support and a complete small Signal Room puzzle authored, solved, reset,
+  captured and exported through MCP. Native chat remains separate and read-only.
+
+Fourteen native test groups cover the expanded engine. Official-SDK integration tests exercise
+actual editor/game workflows, concurrent revisions, read-only/path restrictions and graph views
+at desktop/compact sizes. Full M19 still includes retrieval/embeddings/semantic tools that are
+not implemented; M12 C# and M20 material graphs are not replaced by this native behavior feature.
+The exact supported API and limits are in [MCP.md](MCP.md). No numbered milestone is marked
+complete solely because this control preview exists.
+
 ### Graphics preview checkpoint: 2026-09-07
 
 `v0.1.0-preview.2` extends the native preview; it is not full M4/M6/M9/M11 or Unity/Unreal parity.

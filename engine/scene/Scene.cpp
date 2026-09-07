@@ -240,6 +240,7 @@ Json Scene::entityJson(EntityId id) const {
 Json Scene::toJson() const {
     Json result{{"schema", 1}, {"name", name}, {"ambient", ambient}, {"shadows", shadows},
         {"rayTracedShadows", rayTracedShadows}, {"mode", twoDimensional ? "2d" : "3d"}, {"variables", variables}, {"entities", Json::array()}};
+    if (gameView) { result["view"] = {{"target",{gameView->target.x,gameView->target.y,gameView->target.z}},{"yaw",gameView->yaw},{"pitch",gameView->pitch},{"distance",gameView->distance}}; }
     for (const auto id : order_) { result["entities"].push_back(entityJson(id)); }
     return result;
 }
@@ -279,6 +280,16 @@ bool Scene::deserialize(std::string_view text, std::string& error) {
         const auto mode = root.value("mode", std::string("3d"));
         if (mode != "3d" && mode != "2d") { throw std::runtime_error("Unknown scene view mode."); }
         candidate.twoDimensional = mode == "2d";
+        if (root.contains("view") && !root.at("view").is_null()) {
+            const auto& source = root.at("view");
+            SceneView view;
+            const auto target = values<3>(source.at("target"));
+            view.target = {target[0],target[1],target[2]};
+            view.yaw = bounded(source,"yaw",0.65f,-1000,1000);
+            view.pitch = bounded(source,"pitch",0.42f,-1.48f,1.48f);
+            view.distance = bounded(source,"distance",12,0.3f,180);
+            candidate.gameView = view;
+        }
         const auto variableValues = root.value("variables", Json::object());
         if (!variableValues.is_object() || variableValues.size() > 64) { throw std::runtime_error("Scenes support at most 64 numeric gameplay variables."); }
         for (const auto& field : variableValues.items()) {

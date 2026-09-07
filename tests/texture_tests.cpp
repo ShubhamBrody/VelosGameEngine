@@ -10,16 +10,16 @@
 namespace {
 void require(bool condition, const char* message) { if (!condition) { throw std::runtime_error(message); } }
 
-std::vector<std::byte> imageFixture() {
+std::vector<std::byte> imageFixture(std::size_t width = 16, std::size_t height = 16) {
     DirectX::ScratchImage source;
-    require(SUCCEEDED(source.Initialize2D(DXGI_FORMAT_R8G8B8A8_UNORM, 16, 16, 1, 1)), "Fixture allocation.");
+    require(SUCCEEDED(source.Initialize2D(DXGI_FORMAT_R8G8B8A8_UNORM, width, height, 1, 1)), "Fixture allocation.");
     const auto* image = source.GetImage(0, 0, 0);
-    for (std::size_t row = 0; row < 16; ++row) {
-        for (std::size_t column = 0; column < 16; ++column) {
+    for (std::size_t row = 0; row < height; ++row) {
+        for (std::size_t column = 0; column < width; ++column) {
             auto* pixel = image->pixels + row * image->rowPitch + column * 4;
             const auto intensity = static_cast<std::uint8_t>((row + column) % 2 ? 255 : 0);
             pixel[0] = pixel[1] = pixel[2] = intensity;
-            pixel[3] = column < 8 ? 0 : 255;
+            pixel[3] = column < width / 2 ? 0 : 255;
         }
     }
     DirectX::Blob blob;
@@ -60,6 +60,13 @@ int main() {
         settings.maximumDimension = 16;
         static_cast<void>(velos::loadTexture(root / "source.png", settings, cache));
         require(cache.stats().misses == 2, "Changed texture import settings must invalidate cache.");
+        settings.maximumDimension = 2048;
+        const auto wide = velos::decodeCookedTexture(velos::cookTexture(imageFixture(1120,224),".png",settings));
+        require(wide.mips.front().width == 1120 && wide.mips.front().height == 224 && wide.mips.back().width == 1 && wide.mips.back().height == 1
+            && wide.format == DXGI_FORMAT_BC3_UNORM_SRGB, "Non-power-of-two labels must retain dimensions and generate a complete compressed mip chain.");
+        const auto odd = velos::decodeCookedTexture(velos::cookTexture(imageFixture(31,17),".png",settings));
+        require(odd.mips.front().width == 31 && odd.mips.front().height == 17 && odd.mips.back().width == 1 && odd.mips.back().height == 1
+            && odd.format == DXGI_FORMAT_R8G8B8A8_UNORM_SRGB, "Odd top-level dimensions must use valid uncompressed storage instead of invalid BC resources.");
         bool denied = false;
         try { static_cast<void>(velos::cookTexture({}, ".png", settings)); }
         catch (const std::runtime_error&) { denied = true; }

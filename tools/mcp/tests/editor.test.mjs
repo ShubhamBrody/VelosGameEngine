@@ -9,6 +9,8 @@ import { fileURLToPath } from 'node:url';
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const editor = path.resolve(process.argv[2] ?? path.join(repo,'out/build-control/Release/VelosEditor.exe'));
 const adapter = process.argv[3] ?? 'nvidia';
+const width = Number(process.argv[4] ?? 1600);
+const height = Number(process.argv[5] ?? 1000);
 const parent = path.join(repo,'out/validation-control');
 await mkdir(parent, { recursive: true });
 const root = await mkdtemp(path.join(parent,'mcp-'));
@@ -27,7 +29,7 @@ binary.writeUInt32LE(geometry.length,20 + document.length); binary.writeUInt32LE
 await writeFile(path.join(root,'model.glb'),binary);
 
 const transport = new StdioClientTransport({ command: process.execPath, args: [path.join(repo,'tools/mcp/server.mjs'),
-  `--editor=${editor}`, `--root=${root}`, `--pipe=velos-sdk-test-${process.pid}`, `--adapter=${adapter}`, '--debug-gpu'], stderr: 'pipe' });
+  `--editor=${editor}`, `--root=${root}`, `--pipe=velos-sdk-test-${process.pid}`, `--adapter=${adapter}`, `--width=${width}`, `--height=${height}`, '--debug-gpu'], stderr: 'pipe' });
 const client = new Client({ name: 'velos-integration-test', version: '1.0' });
 let diagnostics = '';
 transport.stderr?.on('data', chunk => { diagnostics += chunk.toString(); });
@@ -122,7 +124,9 @@ try {
   await call('simulation_stop');
   assert.equal((await call('variables_get')).values.score,0, 'Stop must restore authored variables.');
   assert.deepEqual((await call('entity_get',{ entity: player })).entities[0],authored);
-  await call('camera_set', { target: [0,1,0], distance: 12 });
+  await call('camera_set', { target: [0,1,0], distance: 12, yaw_degrees: 22, save_to_scene: true, expected_revision: await revision() });
+  await call('project_save', { expected_revision: await revision() });
+  assert.ok(Math.abs((await call('scene_get')).view.yaw - 22 * Math.PI / 180) < 0.0001);
   const screenshot = await client.callTool({ name: 'velos_viewport_capture', arguments: { path: 'capture.png', expected_revision: await revision(), include_image: true } });
   assert.notEqual(screenshot.isError,true,JSON.stringify(screenshot.content));
   assert.ok(screenshot.content.some(content => content.type === 'image' && content.mimeType === 'image/png'));
