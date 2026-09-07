@@ -15,7 +15,7 @@ commands and per-workspace read-only settings. It requires local Windows x64 and
 
 ```powershell
 .\tools\package-vscode.ps1 -Test
-code --install-extension out/vsix/velos-mcp-tools-0.1.0-win32-x64.vsix
+code --install-extension out/vsix/velos-mcp-tools-0.1.1-win32-x64.vsix
 ```
 
 Build the engine first. **Velos: Configure Connection** selects an editor executable; the engine

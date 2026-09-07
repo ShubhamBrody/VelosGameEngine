@@ -167,7 +167,7 @@ runtime; the native engine build is still required.
 
 ```powershell
 .\tools\package-vscode.ps1 -Test
-code --install-extension out/vsix/velos-mcp-tools-0.1.0-win32-x64.vsix
+code --install-extension out/vsix/velos-mcp-tools-0.1.1-win32-x64.vsix
 ```
 
 Run **Velos: Start or Connect Editor**, then use **MCP: List Servers** and the Copilot tools picker.

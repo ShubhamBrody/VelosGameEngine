@@ -2,7 +2,8 @@
   "name": "velos-mcp-tools",
   "displayName": "Velos MCP Tools",
   "description": "Velos MCP provider and native editor connection commands",
-  "version": "0.1.0",
+  "version": "0.1.1",
+  "icon": "dist/velos-icon.png",
   "publisher": "ShubhamBrody",
   "license": "UNLICENSED",
   "repository": {

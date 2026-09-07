@@ -47,6 +47,8 @@ const esbuildProblemMatcherPlugin = {
 };
 
 async function main() {
+	await fs.mkdir(path.resolve(__dirname, 'dist'), { recursive: true });
+	await fs.copyFile(path.resolve(__dirname, '../../assets/branding/velos-icon.png'), path.resolve(__dirname, 'dist/velos-icon.png'));
 	const ctx = await esbuild.context({
 		entryPoints: [
 			'src/extension.ts'

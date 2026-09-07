@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.1 - 2026-09-07
+
+- Add the Velos logo to the extension listing and the MCP server's icon metadata.
+- Bundle the canonical PNG and verify its bytes in the VSIX and real VS Code host tests.
+
 ## 0.1.0 - 2026-09-07
 
 - Stable VS Code MCP provider for the native Velos editor, with 60 bundled tools and nine resources.

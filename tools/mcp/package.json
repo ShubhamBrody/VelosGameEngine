@@ -1,13 +1,13 @@
 {
   "name": "velos-editor-mcp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "description": "Local MCP control for the native Velos editor",
   "engines": { "node": ">=22" },
   "scripts": {
     "start": "node server.mjs",
-    "test": "node --test tests/catalog.test.mjs",
+    "test": "node --test tests/catalog.test.mjs tests/branding.test.mjs",
     "test:integration": "node tests/editor.test.mjs",
     "test:security": "node tests/security.test.mjs"
   },

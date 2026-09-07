@@ -47,7 +47,14 @@ async function engine(method, args = {}, signal) {
   return request(values.pipe, method, args, { signal });
 }
 
-const server = new Server({ name: 'velos-editor', version: '0.1.0' }, {
+const icon = await readFile(new URL('./velos-icon.png', import.meta.url)).catch(error => {
+  if (error.code !== 'ENOENT') { throw error; }
+  return readFile(new URL('../../assets/branding/velos-icon.png', import.meta.url));
+});
+const server = new Server({
+  name: 'velos-editor', title: 'Velos Engine', version: '0.1.1',
+  icons: [{ src: `data:image/png;base64,${icon.toString('base64')}`, mimeType: 'image/png', sizes: ['256x256'] }]
+}, {
   capabilities: { tools: {}, resources: {}, prompts: {} },
   instructions: 'Control the native Velos editor. Read status/scene before edits and pass expected_revision. Use atomic scene transactions, inspect job results, then capture the rendered revision. Files are confined to the configured workspace. Do not assume unsupported engines features exist. No shell, arbitrary code execution or credential access is provided.'
 });

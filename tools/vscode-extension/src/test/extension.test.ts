@@ -1,5 +1,6 @@
 import * as assert from 'node:assert/strict';
 import * as path from 'node:path';
+import { readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import * as vscode from 'vscode';
 import type { VelosProvider } from '../extension';
@@ -16,6 +17,9 @@ export async function run(): Promise<void> {
 	assert.ok(vscode.workspace.isTrusted, 'The fixture must be trusted.');
 	const extension = vscode.extensions.getExtension<{ provider: VelosProvider; version: string }>('ShubhamBrody.velos-mcp-tools');
 	assert.ok(extension, 'VS Code must discover the development extension from its real manifest.');
+	assert.equal(extension.packageJSON.icon, 'dist/velos-icon.png', 'VS Code must receive the custom extension icon path.');
+	const expectedIcon = await readFile(path.join(repo, 'assets', 'branding', 'velos-icon.png'));
+	assert.deepEqual(await readFile(path.join(extension.extensionPath, extension.packageJSON.icon)), expectedIcon, 'The installed package must contain the canonical logo.');
 	const api = await extension.activate();
 	const config = vscode.workspace.getConfiguration('velosMcp', folder.uri);
 	await config.update('engineDirectory', repo, vscode.ConfigurationTarget.WorkspaceFolder);
@@ -51,6 +55,11 @@ export async function run(): Promise<void> {
 		assert.ok(resolved);
 		await client.connect(new StdioClientTransport({ command: resolved.command, args: resolved.args,
 			env: Object.fromEntries(Object.entries(resolved.env).filter(([, value]) => value !== null).map(([key, value]) => [key, String(value)])) }));
+		const serverIcon = client.getServerVersion()?.icons?.[0];
+		assert.equal(serverIcon?.mimeType, 'image/png', 'The bundled MCP server must advertise its logo.');
+		const iconPrefix = 'data:image/png;base64,';
+		assert.ok(serverIcon?.src.startsWith(iconPrefix));
+		assert.deepEqual(Buffer.from(serverIcon.src.slice(iconPrefix.length), 'base64'), expectedIcon, 'MCP and extension branding must match.');
 		assert.equal((await client.listTools()).tools.length, 60, 'The bundled adapter must expose all real Velos tools.');
 		assert.equal((await client.listResources()).resources.length, 9);
 		const current = await nativeRequest(pipe, 'system.status');

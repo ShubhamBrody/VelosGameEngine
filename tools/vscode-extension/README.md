@@ -4,6 +4,9 @@ A Windows desktop VS Code extension that exposes the native Velos game editor to
 other VS Code MCP clients. It registers a stable MCP server provider and bundles the official
 MCP adapter: **60 tools, nine resources and one game-authoring prompt**.
 
+Version 0.1.1 includes the Velos logo in the extension listing and advertises the same embedded
+PNG in the MCP server metadata. Clients that support MCP server icons can display it without a network request.
+
 ## Requirements
 
 - Windows x64 and VS Code 1.136 or later.
@@ -20,7 +23,7 @@ the extension from source requires Node 22+ and npm. The native engine binaries 
 Install the local VSIX with **Extensions: Install from VSIX**, or:
 
 ```powershell
-code --install-extension out/vsix/velos-mcp-tools-0.1.0-win32-x64.vsix
+code --install-extension out/vsix/velos-mcp-tools-0.1.1-win32-x64.vsix
 ```
 
 1. Open the game workspace and trust it only if its contents are trusted.

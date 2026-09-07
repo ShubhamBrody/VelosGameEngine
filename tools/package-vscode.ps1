@@ -27,7 +27,7 @@ Add-Type -AssemblyName System.IO.Compression.FileSystem
 $archive = [System.IO.Compression.ZipFile]::OpenRead($package)
 try {
     $names = @($archive.Entries | ForEach-Object { $_.FullName })
-    foreach ($required in @('extension/package.json','extension/dist/extension.js','extension/dist/server.mjs','extension/dist/THIRD_PARTY_NOTICES.txt')) {
+    foreach ($required in @('extension/package.json','extension/dist/extension.js','extension/dist/server.mjs','extension/dist/velos-icon.png','extension/dist/THIRD_PARTY_NOTICES.txt')) {
         if ($names -notcontains $required) { throw "VSIX is missing $required" }
     }
     if (@($names | Where-Object { $_ -match '(^|/)(node_modules|src|scripts|out|\.vscode)/|\.env$|autosave|\.map$' }).Count -ne 0) {
@@ -38,7 +38,15 @@ try {
     if ($packed.publisher -ne 'ShubhamBrody' -or $packed.name -ne 'velos-mcp-tools' -or $packed.capabilities.untrustedWorkspaces.supported -ne $false) {
         throw 'Packaged plugin identity or workspace-trust policy differs from the expected manifest.'
     }
-    Write-Output "PASS: VSIX contains only the plugin, bundled adapter, documentation and dependency notices ($($names.Count) entries)."
+    if ($packed.icon -ne 'dist/velos-icon.png') { throw 'The plugin manifest does not reference the packaged Velos logo.' }
+    $iconStream = $archive.GetEntry('extension/' + $packed.icon).Open()
+    $hasher = [System.Security.Cryptography.SHA256]::Create()
+    try { $iconHash = [BitConverter]::ToString($hasher.ComputeHash($iconStream)).Replace('-', '') }
+    finally { $hasher.Dispose(); $iconStream.Dispose() }
+    if ($iconHash -ne (Get-FileHash -LiteralPath (Join-Path $root 'assets/branding/velos-icon.png') -Algorithm SHA256).Hash) {
+        throw 'The packaged plugin logo differs from the canonical Velos artwork.'
+    }
+    Write-Output "PASS: VSIX includes the canonical Velos logo, plugin, bundled adapter, documentation and dependency notices ($($names.Count) entries)."
 } finally { $archive.Dispose() }
 if ($Test) {
     $fixture = Join-Path $root ('out\validation-vscode\vsix-' + [guid]::NewGuid().ToString('N'))
